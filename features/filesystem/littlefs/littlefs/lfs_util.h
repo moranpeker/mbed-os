@@ -89,14 +89,10 @@ void lfs_crc(uint32_t *crc, const void *buffer, size_t size);
 
 
 // Logging functions
-#ifdef __MBED__
-#include "mbed_debug.h"
-#else
-#define MBED_LFS_ENABLE_INFO  false
+#define MBED_LFS_ENABLE_INFO  true
 #define MBED_LFS_ENABLE_DEBUG true
 #define MBED_LFS_ENABLE_WARN  true
 #define MBED_LFS_ENABLE_ERROR true
-#endif
 
 #if MBED_LFS_ENABLE_INFO
 #define LFS_INFO(fmt, ...)  printf("lfs info: " fmt "\n", __VA_ARGS__)
