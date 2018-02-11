@@ -23,6 +23,15 @@
 
 #include "mbed.h"
 #include "rtos/rtos_idle.h"
+#include "mbed_assert.h"
+
+#define ALIGN_UP(pos, align) ((pos) % (align) ? (pos) +  ((align) - (pos) % (align)) : (pos))
+MBED_STATIC_ASSERT(ALIGN_UP(0, 8) == 0, "ALIGN_UP macro error");
+MBED_STATIC_ASSERT(ALIGN_UP(1, 8) == 8, "ALIGN_UP macro error");
+
+#define ALIGN_DOWN(pos, align) ((pos) - ((pos) % (align)))
+MBED_STATIC_ASSERT(ALIGN_DOWN(7, 8) == 0, "ALIGN_DOWN macro error");
+MBED_STATIC_ASSERT(ALIGN_DOWN(8, 8) == 8, "ALIGN_DOWN macro error");
 
 static void (*terminate_hook)(osThreadId_t id) = 0;
 extern "C" void thread_terminate_hook(osThreadId_t id)
@@ -36,15 +45,21 @@ namespace rtos {
 
 void Thread::constructor(osPriority priority,
         uint32_t stack_size, unsigned char *stack_mem, const char *name) {
+
+    const uintptr_t unaligned_mem = reinterpret_cast<uintptr_t>(stack_mem);
+    const uintptr_t aligned_mem = ALIGN_UP(unaligned_mem, 8);
+    const uint32_t offset = aligned_mem - unaligned_mem;
+    const uint32_t aligned_size = ALIGN_DOWN(stack_size - offset, 8);
+
     _tid = 0;
     _dynamic_stack = (stack_mem == NULL);
     _finished = false;
     memset(&_obj_mem, 0, sizeof(_obj_mem));
     memset(&_attr, 0, sizeof(_attr));
     _attr.priority = priority;
-    _attr.stack_size = stack_size;
+    _attr.stack_size = aligned_size;
     _attr.name = name ? name : "application_unnamed_thread";
-    _attr.stack_mem = (uint32_t*)stack_mem;
+    _attr.stack_mem = reinterpret_cast<uint32_t*>(aligned_mem);
 }
 
 void Thread::constructor(Callback<void()> task,
@@ -114,7 +129,11 @@ osStatus Thread::terminate() {
     _tid = (osThreadId_t)NULL;
     if (!_finished) {
         _finished = true;
-        ret = osThreadTerminate(local_id);
+        // if local_id == 0 Thread was not started in first place
+        // and does not have to be terminated
+        if (local_id != 0) {
+            ret = osThreadTerminate(local_id);
+        }
     }
     _mutex.unlock();
     return ret;
@@ -332,6 +351,35 @@ osEvent Thread::signal_wait(int32_t signals, uint32_t millisec) {
 
 osStatus Thread::wait(uint32_t millisec) {
     return osDelay(millisec);
+}
+
+osStatus Thread::wait_until(uint64_t millisec) {
+    // CMSIS-RTOS 2.1.0 and 2.1.1 differ in the time type, which we determine
+    // by looking at the return type of osKernelGetTickCount. We assume
+    // our header at least matches the implementation, so we don't try looking
+    // at the run-time version report. (There's no compile-time version report)
+    if (sizeof osKernelGetTickCount() == sizeof(uint64_t)) {
+        // CMSIS-RTOS 2.1.0 has a 64-bit API. The corresponding RTX 5.2.0 can't
+        // delay more than 0xfffffffe ticks, but there's no limit stated for
+        // the generic API.
+        return osDelayUntil(millisec);
+    } else {
+        // 64-bit time doesn't wrap (for half a billion years, at last)
+        uint64_t now = Kernel::get_ms_count();
+        // Report being late on entry
+        if (now >= millisec) {
+            return osErrorParameter;
+        }
+        // We're about to make a 32-bit delay call, so have at least this limit
+        if (millisec - now > 0xFFFFFFFF) {
+            return osErrorParameter;
+        }
+        // And this may have its own internal limit - we'll find out.
+        // We hope/assume there's no problem with passing
+        // osWaitForever = 0xFFFFFFFF - that value is only specified to have
+        // special meaning for osSomethingWait calls.
+        return osDelay(millisec - now);
+    }
 }
 
 osStatus Thread::yield() {

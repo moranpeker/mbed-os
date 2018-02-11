@@ -5,7 +5,7 @@
                    "-fmessage-length=0", "-fno-exceptions", "-fno-builtin",
                    "-ffunction-sections", "-fdata-sections", "-funsigned-char",
                    "-MMD", "-fno-delete-null-pointer-checks",
-                   "-fomit-frame-pointer", "-Os", "-DNDEBUG"],
+                   "-fomit-frame-pointer", "-Os", "-DNDEBUG", "-g1"],
         "asm": ["-x", "assembler-with-cpp"],
         "c": ["-std=gnu99"],
         "cxx": ["-std=gnu++98", "-fno-rtti", "-Wvla"],
@@ -46,7 +46,7 @@
     "IAR": {
         "common": [
             "--no_wrap_diagnostics", "-e",
-            "--diag_suppress=Pa050,Pa084,Pa093,Pa082", "-Ohz", "-DNDEBUG"],
+            "--diag_suppress=Pa050,Pa084,Pa093,Pa082", "-Ohz", "-DNDEBUG", "--enable_restrict"],
         "asm": [],
         "c": ["--vla"],
         "cxx": ["--guard_calls", "--no_static_destruction"],

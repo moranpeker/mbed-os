@@ -20,6 +20,7 @@
  * SOFTWARE.
  */
 #include "rtos/Mutex.h"
+#include "rtos/Kernel.h"
 
 #include <string.h>
 #include "mbed_error.h"
@@ -27,7 +28,7 @@
 
 namespace rtos {
 
-Mutex::Mutex()
+Mutex::Mutex(): _count(0)
 {
     constructor();
 }
@@ -40,25 +41,58 @@ Mutex::Mutex(const char *name)
 void Mutex::constructor(const char *name)
 {
     memset(&_obj_mem, 0, sizeof(_obj_mem));
-    memset(&_attr, 0, sizeof(_attr));
-    _attr.name = name ? name : "aplication_unnamed_mutex";
-    _attr.cb_mem = &_obj_mem;
-    _attr.cb_size = sizeof(_obj_mem);
-    _attr.attr_bits = osMutexRecursive | osMutexPrioInherit | osMutexRobust;
-    _id = osMutexNew(&_attr);
+    osMutexAttr_t attr = { 0 };
+    attr.name = name ? name : "aplication_unnamed_mutex";
+    attr.cb_mem = &_obj_mem;
+    attr.cb_size = sizeof(_obj_mem);
+    attr.attr_bits = osMutexRecursive | osMutexPrioInherit | osMutexRobust;
+    _id = osMutexNew(&attr);
     MBED_ASSERT(_id);
 }
 
 osStatus Mutex::lock(uint32_t millisec) {
-    return osMutexAcquire(_id, millisec);
+    osStatus status = osMutexAcquire(_id, millisec);
+    if (osOK == status) {
+        _count++;
+    }
+    return status;
 }
 
 bool Mutex::trylock() {
-    return (osMutexAcquire(_id, 0) == osOK);
+    return trylock_for(0);
+}
+
+bool Mutex::trylock_for(uint32_t millisec) {
+    osStatus status = lock(millisec);
+    if (status == osOK) {
+        return true;
+    }
+
+    MBED_ASSERT(status == osErrorTimeout || status == osErrorResource);
+
+    return false;
+}
+
+bool Mutex::trylock_until(uint64_t millisec) {
+    uint64_t now = Kernel::get_ms_count();
+
+    if (now >= millisec) {
+        return trylock();
+    } else if (millisec - now >= osWaitForever) {
+        // API permits early return
+        return trylock_for(osWaitForever - 1);
+    } else {
+        return trylock_for(millisec - now);
+    }
 }
 
 osStatus Mutex::unlock() {
+    _count--;
     return osMutexRelease(_id);
+}
+
+osThreadId Mutex::get_owner() {
+    return osMutexGetOwner(_id);
 }
 
 Mutex::~Mutex() {
