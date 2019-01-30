@@ -51,8 +51,14 @@ static uint32_t key_registered = 0;
 
 #define MAX_BOOT_STATUS 512
 
-#define NESTED     1
-#define NOT_NESTED 0
+/* Indicates how to encode SW components' measurements in the CBOR map */
+#define NESTED     1  /* Nested map */
+#define NOT_NESTED 0  /* Flat structure */
+
+/* Indicates that the boot status does not contain any SW components'
+ * measurement
+ */
+#define NO_SW_COMPONENT_FIXED_VALUE 1
 
 /*!
  * \var boot_status
@@ -152,10 +158,10 @@ static inline int32_t get_uint(const void *int_ptr,
  * \retval     0          Entry not found
  * \retval     1          Entry found
  */
-static uint32_t attest_get_tlv_by_module(uint8_t    module,
-                                         uint8_t   *claim,
-                                         uint16_t  *tlv_len,
-                                         uint8_t  **tlv_ptr)
+static int32_t attest_get_tlv_by_module(uint8_t    module,
+                                        uint8_t   *claim,
+                                        uint16_t  *tlv_len,
+                                        uint8_t  **tlv_ptr)
 {
     struct shared_data_tlv_header *tlv_header;
     struct shared_data_tlv_entry  *tlv_entry;
@@ -193,6 +199,54 @@ static uint32_t attest_get_tlv_by_module(uint8_t    module,
     }
 
     return 0;
+}
+
+/*!
+ * \brief Static function to look up specific claim belongs to SW_GENERAL module
+ *
+ * \param[in]     claim   The claim ID to look for
+ * \param[out]    tlv_len Length of the shared data entry
+ * \param[in/out] tlv_ptr Pointer to the shared data entry. If its value NULL as
+ *                        input then it will starts the look up from the
+ *                        beginning of the shared data section. If not NULL then
+ *                        it continue look up from the next entry. It returns
+ *                        the address of next found entry which belongs to
+ *                        module.
+ *
+ * \retval    -1          Error, boot status is malformed
+ * \retval     0          Entry not found
+ * \retval     1          Entry found
+ */
+static int32_t attest_get_tlv_by_id(uint8_t    claim,
+                                    uint16_t  *tlv_len,
+                                    uint8_t  **tlv_ptr)
+{
+    uint8_t tlv_id;
+    uint8_t module = SW_GENERAL;
+    int32_t found;
+
+    /* Ensure that look up starting from the beginning of the boot status */
+    *tlv_ptr = NULL;
+
+    /* Look up specific TLV entry which belongs to SW_GENERAL module */
+    do {
+        /* Look up next entry */
+        found = attest_get_tlv_by_module(module, &tlv_id,
+                                         tlv_len, tlv_ptr);
+        if (found == -1) {
+            return -1;
+        } else if (found == 0) {
+            return 0;
+        }
+        /* At least one entry was found which belongs to SW_GENERAL,
+         * check whether this one is looked for
+         */
+        if (claim == tlv_id) {
+            break;
+        }
+    } while (found);
+
+    return 1;
 }
 
 /*!
@@ -282,7 +336,7 @@ attest_add_single_sw_measurment(struct attest_token_ctx *me,
     uint16_t tlv_len = tlv_entry->tlv_len;
     uint8_t  tlv_id  = GET_IAS_CLAIM(tlv_entry->tlv_type);
     uint8_t *tlv_ptr = tlv_address;
-    uint32_t found = 1;
+    int32_t found = 1;
     struct useful_buf_c claim_value;
     enum psa_attest_err_t res;
     QCBOREncodeContext *cbor_encode_ctx;
@@ -343,7 +397,7 @@ attest_add_single_sw_component(struct attest_token_ctx *me,
     uint16_t tlv_len = tlv_entry->tlv_len;
     uint8_t  tlv_id  = GET_IAS_CLAIM(tlv_entry->tlv_type);
     uint8_t *tlv_ptr = tlv_address;
-    uint32_t found = 1;
+    int32_t found = 1;
     uint32_t measurement_claim_cnt = 0;
     struct useful_buf_c claim_value;
     QCBOREncodeContext *cbor_encode_ctx;
@@ -397,17 +451,13 @@ attest_add_all_sw_components(struct attest_token_ctx *me)
     uint16_t tlv_len;
     uint8_t *tlv_ptr;
     uint8_t  tlv_id;
-    uint32_t found;
+    int32_t found;
+    uint32_t cnt = 0;
     uint32_t module;
     QCBOREncodeContext *cbor_encode_ctx;
 
-    /* Open array which stores SW components claims */
-    cbor_encode_ctx = attest_token_borrow_cbor_cntxt(me);
-    QCBOREncode_OpenArrayInMapN(cbor_encode_ctx,
-                                EAT_CBOR_ARM_LABEL_SW_COMPONENTS);
-
     /* Starting from module 1, because module 0 contains general claims which
-     * are not related to SW module(i.e: boot_seed)
+     * are not related to SW module(i.e: boot_seed, etc.)
      */
     for (module = 1; module < SW_MAX; ++module) {
         /* Indicates to restart the look up from the beginning of the shared
@@ -423,12 +473,28 @@ attest_add_all_sw_components(struct attest_token_ctx *me)
         }
 
         if (found == 1) {
+            cnt++;
+            if (cnt == 1) {
+                /* Open array which stores SW components claims */
+                cbor_encode_ctx = attest_token_borrow_cbor_cntxt(me);
+                QCBOREncode_OpenArrayInMapN(cbor_encode_ctx,
+                                            EAT_CBOR_ARM_LABEL_SW_COMPONENTS);
+            }
             attest_add_single_sw_component(me, module, tlv_ptr);
         }
     }
 
-    /* Close array which stores SW components claims*/
-    QCBOREncode_CloseArray(cbor_encode_ctx);
+    if (cnt != 0) {
+        /* Close array which stores SW components claims*/
+        QCBOREncode_CloseArray(cbor_encode_ctx);
+    } else {
+        /* If there is no any SW components' measurement in the boot status then
+         * include this claim to indicates that this state is intentional
+         */
+        attest_token_add_integer(me,
+                                 EAT_CBOR_ARM_LABEL_NO_SW_COMPONENTS,
+                                 (int64_t)NO_SW_COMPONENT_FIXED_VALUE);
+    }
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
@@ -450,15 +516,28 @@ attest_add_boot_seed_claim(struct attest_token_ctx *me)
     __attribute__ ((aligned(4)))
     uint8_t boot_seed[BOOT_SEED_SIZE];
     enum tfm_plat_err_t res;
-    struct useful_buf_c claim_value;
+    struct useful_buf_c claim_value = {0};
+    uint16_t tlv_len;
+    uint8_t *tlv_ptr = NULL;
+    int32_t found = 0;
 
-    res = tfm_plat_get_boot_seed(sizeof(boot_seed), boot_seed);
-    if (res != TFM_PLAT_ERR_SUCCESS) {
-        return PSA_ATTEST_ERR_CLAIM_UNAVAILABLE;
+    /* First look up BOOT_SEED in boot status, it might comes from bootloader */
+    found = attest_get_tlv_by_id(BOOT_SEED, &tlv_len, &tlv_ptr);
+    if (found == 1) {
+        claim_value.ptr = tlv_ptr + SHARED_DATA_ENTRY_HEADER_SIZE;
+        claim_value.len = tlv_len - SHARED_DATA_ENTRY_HEADER_SIZE;
+    } else {
+        /* If not found in boot status then use callback function to get it
+         * from runtime SW
+         */
+        res = tfm_plat_get_boot_seed(sizeof(boot_seed), boot_seed);
+        if (res != TFM_PLAT_ERR_SUCCESS) {
+            return PSA_ATTEST_ERR_CLAIM_UNAVAILABLE;
+        }
+        claim_value.ptr = boot_seed;
+        claim_value.len = BOOT_SEED_SIZE;
     }
 
-    claim_value.ptr = boot_seed;
-    claim_value.len  = BOOT_SEED_SIZE;
     attest_token_add_bstr(me,
                           EAT_CBOR_ARM_LABEL_BOOT_SEED,
                           claim_value);
@@ -557,15 +636,30 @@ attest_add_hw_version_claim(struct attest_token_ctx *me)
     uint8_t hw_version[HW_VERSION_MAX_SIZE];
     enum tfm_plat_err_t res_plat;
     uint32_t size = sizeof(hw_version);
-    struct useful_buf_c claim_value;
+    struct useful_buf_c claim_value = {0};
+    uint16_t tlv_len;
+    uint8_t *tlv_ptr = NULL;
+    int32_t found = 0;
 
-    res_plat = tfm_plat_get_hw_version(&size, hw_version);
-    if (res_plat != TFM_PLAT_ERR_SUCCESS) {
-        return PSA_ATTEST_ERR_CLAIM_UNAVAILABLE;
+    /* First look up HW version in boot status, it might comes
+     * from bootloader
+     */
+    found = attest_get_tlv_by_id(HW_VERSION, &tlv_len, &tlv_ptr);
+    if (found == 1) {
+        claim_value.ptr = tlv_ptr + SHARED_DATA_ENTRY_HEADER_SIZE;
+        claim_value.len = tlv_len - SHARED_DATA_ENTRY_HEADER_SIZE;
+    } else {
+        /* If not found in boot status then use callback function to get it
+         * from runtime SW
+         */
+        res_plat = tfm_plat_get_hw_version(&size, hw_version);
+        if (res_plat != TFM_PLAT_ERR_SUCCESS) {
+            return PSA_ATTEST_ERR_CLAIM_UNAVAILABLE;
+        }
+        claim_value.ptr = hw_version;
+        claim_value.len = HW_VERSION_MAX_SIZE;
     }
 
-    claim_value.ptr = hw_version;
-    claim_value.len  = size;
     attest_token_add_tstr(me,
                           EAT_CBOR_ARM_LABEL_HW_VERSION,
                           claim_value);
@@ -594,7 +688,7 @@ attest_add_caller_id_claim(struct attest_token_ctx *me)
 
     attest_token_add_integer(me,
                              EAT_CBOR_ARM_LABEL_CLIENT_ID,
-                             (uint64_t)caller_id);
+                             (int64_t)caller_id);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
@@ -611,12 +705,41 @@ static enum psa_attest_err_t
 attest_add_security_lifecycle_claim(struct attest_token_ctx *me)
 {
     enum tfm_security_lifecycle_t security_lifecycle;
+    uint32_t slc_value;
+    int32_t res;
+    struct useful_buf_c claim_value = {0};
+    uint16_t tlv_len;
+    uint8_t *tlv_ptr = NULL;
+    int32_t found = 0;
 
-    security_lifecycle = tfm_attest_hal_get_security_lifecycle();
+    /* First look up HW version in boot status, it might comes
+     * from bootloader
+     */
+    found = attest_get_tlv_by_id(SECURITY_LIFECYCLE, &tlv_len, &tlv_ptr);
+    if (found == 1) {
+        claim_value.ptr = tlv_ptr + SHARED_DATA_ENTRY_HEADER_SIZE;
+        claim_value.len = tlv_len - SHARED_DATA_ENTRY_HEADER_SIZE;
+        res = get_uint(claim_value.ptr, claim_value.len, &slc_value);
+        if (res) {
+            return PSA_ATTEST_ERR_GENERAL;
+        }
+        security_lifecycle = (enum tfm_security_lifecycle_t)slc_value;
+    } else {
+        /* If not found in boot status then use callback function to get it
+         * from runtime SW
+         */
+        security_lifecycle = tfm_attest_hal_get_security_lifecycle();
+    }
+
+    /* Sanity check */
+    if (security_lifecycle < TFM_SLC_ASSEMBLY ||
+        security_lifecycle > TFM_SLC_UNCONSTRAINED_DEBUG) {
+        return PSA_ATTEST_ERR_GENERAL;
+    }
 
     attest_token_add_integer(me,
                              EAT_CBOR_ARM_LABEL_SECURITY_LIFECYCLE,
-                             (uint64_t)security_lifecycle);
+                             (int64_t)security_lifecycle);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
