@@ -48,21 +48,25 @@ static psa_status_t get_curve(psa_key_type_t type, enum ecc_curve_t *curve_type)
     {
         case PSA_ECC_CURVE_SECP256R1:
             *curve_type = P_256;
+            break;
         case PSA_ECC_CURVE_SECP384R1:
             *curve_type = P_384;
+            break;
         case PSA_ECC_CURVE_SECP521R1:
             *curve_type = P_521;
+            break;
         case PSA_ECC_CURVE_CURVE25519:
             *curve_type = X25519;
+            break;
         case PSA_ECC_CURVE_CURVE448:
             *curve_type = X448;
+            break;
         default:
             return( PSA_ERROR_NOT_SUPPORTED );
     }
 
     return PSA_SUCCESS;
 }
-
 
 enum tfm_plat_err_t
 tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
@@ -72,7 +76,7 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
                                 
 {
     uint8_t *key_dst = NULL;
-    const uint8_t *key_src;
+    uint8_t *key_src;
     uint32_t key_size;
 
     psa_status_t crypto_ret;
@@ -87,7 +91,7 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
     uint32_t initial_attestation_public_x_key_size = 0;
     uint32_t initial_attestation_public_y_key_size = 0;
 
-    const psa_key_id_t key_id = 1;
+    const psa_key_id_t key_id = 17;
     psa_key_handle_t handle = 0;
 
     crypto_ret = psa_crypto_init();
@@ -101,7 +105,8 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
     crypto_ret = psa_get_key_information( handle, &type, &bits );
     if(crypto_ret != PSA_SUCCESS)
         return TFM_PLAT_ERR_SYSTEM_ERR;
-    
+    if (!PSA_KEY_TYPE_IS_ECC(type))
+        return TFM_PLAT_ERR_SYSTEM_ERR;
     public_type = PSA_KEY_TYPE_PUBLIC_KEY_OF_KEYPAIR( type );
     public_key_size = PSA_KEY_EXPORT_MAX_SIZE( public_type, bits );
     public_key = (uint8_t*) malloc( public_key_size );
@@ -124,17 +129,26 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
     }
 
     key_src = public_key;
+    key_dst  = key_buf;
 
-    initial_attestation_public_x_key_size = ceil((public_key_length - 1)/8);
-    initial_attestation_public_y_key_size = ceil((public_key_length - 1)/8);
+    /* The representation of an ECC public key is:
+    ** -The byte 0x04
+    ** - `x_P` as a `ceiling(m/8)`-byte string, big-endian
+    ** - `y_P` as a `ceiling(m/8)`-byte string, big-endian
+    ** - where m is the bit size associated with the curve
+    ** - 1 byte + 2 * point size
+    */
+    initial_attestation_public_x_key_size = ceil((public_key_length - 1)/2);
+    initial_attestation_public_y_key_size = ceil((public_key_length - 1)/2);
 
     /* Copy the x-coordinate of public key to the buffer */
     if (initial_attestation_public_x_key_size != 0) {
-        key_src += ONE_BYTE;        
+        key_src = key_src + ONE_BYTE;    
         key_size = initial_attestation_public_x_key_size;
         copy_key(key_dst, key_src, key_size);
         ecc_key->pubx_key = key_dst;
         ecc_key->pubx_key_size = key_size;
+        key_dst  = key_dst + key_size;
     } else {
         ecc_key->pubx_key = NULL;
         ecc_key->pubx_key_size = 0;

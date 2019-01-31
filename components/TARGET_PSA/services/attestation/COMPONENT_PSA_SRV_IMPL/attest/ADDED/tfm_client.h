@@ -8,16 +8,12 @@
 #ifndef __TFM_CLIENT_H__
 #define __TFM_CLIENT_H__
 
-#include "psa_defs.h" /* psa_invec, psa_outvec */
+#include "psa_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Intentionally empty, the aim of this file to include psa_client.h, which
- * contains the psa_invec and psa_outvec definitions in TF-M project, but these
- * might has different location in another projects.
- */
 #ifdef __cplusplus
 }
 #endif

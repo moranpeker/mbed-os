@@ -61,10 +61,14 @@ extern "C" {
 /* Initial attestation: General claim does not belong any particular SW
  * component. But they might be part of the boot status.
  */
-#define GENERAL_BOOT_SEED  0x00
+#define BOOT_SEED          0x00
+#define HW_VERSION         0x01
+#define SECURITY_LIFECYCLE 0x02
 
 /* Minor numbers (12 bit) to identify attestation service related data */
-#define TLV_MINOR_IAS_BOOT_SEED       ((SW_GENERAL << 6) | GENERAL_BOOT_SEED)
+#define TLV_MINOR_IAS_BOOT_SEED       ((SW_GENERAL << 6) | BOOT_SEED)
+#define TLV_MINOR_IAS_HW_VERSION      ((SW_GENERAL << 6) | HW_VERSION)
+#define TLV_MINOR_IAS_SLC             ((SW_GENERAL << 6) | SECURITY_LIFECYCLE)
 
 /* Bootloader - It can be more stage */
 #define TLV_MINOR_IAS_BL2_MEASURE_VALUE  ((SW_BL2  << 6) | SW_MEASURE_VALUE)

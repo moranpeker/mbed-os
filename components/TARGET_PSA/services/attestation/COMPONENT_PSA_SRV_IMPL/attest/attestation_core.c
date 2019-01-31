@@ -921,15 +921,15 @@ attest_create_token(struct useful_buf_c  challenge,
             goto error;
         }
 
-        // attest_err = attest_add_verification_service(&attest_token_ctx);
-        // if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
-        //     goto error;
-        // }
+        attest_err = attest_add_verification_service(&attest_token_ctx);
+        if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
+            goto error;
+        }
 
-        // attest_err = attest_add_profile_definition(&attest_token_ctx);
-        // if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
-        //     goto error;
-        // }
+        attest_err = attest_add_profile_definition(&attest_token_ctx);
+        if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
+            goto error;
+        }
 
         /* FixMe: Remove this #if when MPU will be configured properly.
          *        Currently in case of TFM_LVL == 3 unaligned access triggers

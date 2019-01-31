@@ -25,7 +25,7 @@ t_cose_crypto_pub_key_sign(int32_t cose_alg_id,
 
     (void)key_select;
 
-    const psa_key_id_t key_id = 1;
+    const psa_key_id_t key_id = 17;
     psa_key_handle_t handle = 0;
 
     crypto_ret = psa_crypto_init();
