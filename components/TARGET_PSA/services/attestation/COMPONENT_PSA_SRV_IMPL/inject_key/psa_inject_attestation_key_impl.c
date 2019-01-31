@@ -13,7 +13,6 @@ psa_status_t
 psa_attestation_inject_key_impl(const uint8_t *key_data,
                                 size_t key_data_length,
                                 psa_key_type_t type,
-                                psa_algorithm_t alg,
                                 uint8_t *public_key_data,
                                 size_t public_key_data_size,
                                 size_t *public_key_data_length)
@@ -39,14 +38,12 @@ psa_attestation_inject_key_impl(const uint8_t *key_data,
         return( status );
 
     psa_key_policy_init();
-    psa_key_policy_set_usage( &policy, usage, alg );
+    psa_key_policy_set_usage( &policy, usage, PSA_ALG_ECDSA( PSA_ALG_SHA_256 ) );
     status = psa_set_key_policy( handle, &policy );
     if( status != PSA_SUCCESS)
         return( status );
     
     if(! PSA_KEY_TYPE_IS_ECC_KEYPAIR(type))
-        return( PSA_ERROR_INVALID_ARGUMENT );
-    if(! PSA_ALG_IS_ECDSA( alg ) )
         return( PSA_ERROR_INVALID_ARGUMENT );
     
     if( key_data != NULL )
