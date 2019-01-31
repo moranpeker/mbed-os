@@ -1,8 +1,6 @@
 // ---------------------------------- Includes ---------------------------------
-#include "spm_panic.h"
-#include "spm_server.h"
-#include "spm/psa_defs.h"
-#include "spm/spm_client.h"
+#include "psa/service.h"
+#include "psa/client.h"
 
 #define PSA_ATTEST_SECURE 1
 #include "psa_attestation_srv_partition.h"
@@ -60,8 +58,8 @@ static void psa_attest_get_token(void)
                 SPM_PANIC("SPM read length mismatch");
             }
 
-            psa_invec_t in_vec[1] = { { challenge_buff, msg.in_size[0] } };
-            psa_outvec_t out_vec[1] = { { token_buff, token_size } };
+            psa_invec in_vec[1] = { { challenge_buff, msg.in_size[0] } };
+            psa_outvec out_vec[1] = { { token_buff, token_size } };
 
             status = initial_attest_get_token(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)
@@ -104,8 +102,8 @@ static void psa_attest_get_token_size(void)
                 SPM_PANIC("SPM read length mismatch");
             }
 
-            psa_invec_t in_vec[1] = { { challenge_size, msg.in_size[0] } };
-            psa_outvec_t out_vec[1] = { { token_size, msg.out_size[0] } };
+            psa_invec in_vec[1] = { { challenge_size, msg.in_size[0] } };
+            psa_outvec out_vec[1] = { { token_size, msg.out_size[0] } };
 
             status = psa_initial_attest_get_token_size(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)
@@ -141,16 +139,17 @@ static void psa_attest_inject_key(void)
             size_t public_key_data_size;
             size_t public_key_data_length = 0;
             uint8_t *key_data = NULL;
+            psa_key_type_t type;
 
             uint32_t bytes_read = 0;
             psa_attest_ipc_inject_t psa_attest = {0};
 
-            if (msg.in_size[0] != sizeof(psa_attest_ipc_inject_t)) {
+            if (msg.in_size[0] != sizeof(psa_key_type_t)) {
                 status = PSA_ERROR_COMMUNICATION_FAILURE;
                 break;
             }
 
-            bytes_read = psa_read(msg.handle, 0, &psa_attest, msg.in_size[0]);
+            bytes_read = psa_read(msg.handle, 0, &type, msg.in_size[0]);
             if (bytes_read != msg.in_size[0]) {
                 SPM_PANIC("SPM read length mismatch");
             }
@@ -176,8 +175,7 @@ static void psa_attest_inject_key(void)
 
             status = psa_attestation_inject_key_impl(key_data,
                                                      msg.in_size[1],
-                                                     psa_attest.type,
-                                                     psa_attest.alg,
+                                                     type,
                                                      public_key_data,
                                                      msg.out_size[0],
                                                      &public_key_data_length);

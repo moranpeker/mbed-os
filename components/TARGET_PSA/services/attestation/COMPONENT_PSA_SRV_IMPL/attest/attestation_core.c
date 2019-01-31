@@ -985,8 +985,8 @@ attest_create_token(struct useful_buf_c  challenge,
  *    service.
  */
 enum psa_attest_err_t
-initial_attest_get_token(const psa_invec_t  *in_vec,  uint32_t num_invec,
-                               psa_outvec_t *out_vec, uint32_t num_outvec)
+initial_attest_get_token(const psa_invec  *in_vec,  uint32_t num_invec,
+                               psa_outvec *out_vec, uint32_t num_outvec)
 {
     enum psa_attest_err_t attest_err = PSA_ATTEST_ERR_SUCCESS;
     struct useful_buf_c  challenge;
@@ -1031,8 +1031,8 @@ error:
 
 /* Initial implementation, just returns with hard coded value */
 enum psa_attest_err_t
-initial_attest_get_token_size(const psa_invec_t  *in_vec,  uint32_t num_invec,
-                                    psa_outvec_t *out_vec, uint32_t num_outvec)
+initial_attest_get_token_size(const psa_invec  *in_vec,  uint32_t num_invec,
+                                    psa_outvec *out_vec, uint32_t num_outvec)
 {
     enum psa_attest_err_t attest_err = PSA_ATTEST_ERR_SUCCESS;
     uint32_t  challenge_size = *(uint32_t *)in_vec[0].base;

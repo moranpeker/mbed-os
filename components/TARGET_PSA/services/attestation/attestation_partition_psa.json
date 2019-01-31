@@ -33,12 +33,12 @@
     }
   ],
   "extern_sids": [
-    "PSA_CRYPTO_INIT",
-    "PSA_HASH",
-    "PSA_ASYMMETRIC",
-    "PSA_KEY_MNG",
-    "PSA_CRYPTO_FREE",
-    "PSA_GENERATOR"
+    "PSA_CRYPTO_INIT_ID",
+    "PSA_HASH_ID",
+    "PSA_ASYMMETRIC_ID",
+    "PSA_KEY_MNG_ID",
+    "PSA_CRYPTO_FREE_ID",
+    "PSA_GENERATOR_ID"
   ],
   "source_files": [
     "COMPONENT_SPE/psa_attestation_partition.c"

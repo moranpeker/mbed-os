@@ -7,8 +7,7 @@
 
 #include "psa_initial_attestation_api.h"
 #include "crypto.h"
-#include "psa_defs.h"
-#include "spm_client.h"
+#include "psa/client.h"
 #include "attestation.h"
 #include <string.h>
 
@@ -30,9 +29,8 @@ psa_initial_attest_get_token(const uint8_t *challenge_obj,
     /* Copy challenge object to scratch area */
     memcpy(challenge_buff, challenge_obj, challenge_size);
 
-    psa_invec_t in_vec[1] = { { challenge_buff, challenge_size } };
-    
-    psa_outvec_t out_vec[1] = { { token_buff, token_size } };
+    psa_invec in_vec[1] = { { challenge_buff, challenge_size } };
+    psa_outvec out_vec[1] = { { token_buff, token_size } };
 
     handle = psa_connect(PSA_ATTEST_GET_TOKEN_ID, MINOR_VER);
     if (handle <= 0) {
@@ -57,8 +55,8 @@ psa_initial_attest_get_token_size(uint32_t  challenge_size,
     
     psa_handle_t handle = PSA_NULL_HANDLE;
 
-    psa_invec_t in_vec[1] = { { challenge_size, sizeof(challenge_size) } };
-    psa_outvec_t out_vec[1] = { { token_size, sizeof(*token_size) } };
+    psa_invec in_vec[1] = { { challenge_size, sizeof(challenge_size) } };
+    psa_outvec out_vec[1] = { { token_size, sizeof(*token_size) } };
 
     handle = psa_connect(PSA_ATTEST_GET_TOKEN_SIZE_ID, MINOR_VER);
     if (handle <= 0) {

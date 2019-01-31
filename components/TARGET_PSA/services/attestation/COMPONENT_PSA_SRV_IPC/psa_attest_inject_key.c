@@ -6,10 +6,8 @@
  */
 
 #include "psa_attest_inject_key.h"
-#include "psa_attest_platform_spe.h"
 #include "crypto.h"
-#include "psa_defs.h"
-#include "spm_client.h"
+#include "psa/client.h"
 
 #define MINOR_VER 1
 
@@ -17,31 +15,26 @@ psa_status_t
 psa_attestation_inject_key(const uint8_t *key_data,
                            size_t key_data_length,
                            psa_key_type_t type,
-                           psa_algorithm_t alg,
                            uint8_t *public_key_data,
                            size_t public_key_data_size,
                            size_t *public_key_data_length)
 {
     psa_handle_t handle = PSA_NULL_HANDLE;    
     psa_error_t call_error = PSA_SUCCESS;
-    psa_attest_ipc_inject_t psa_attest_ipc = { 0, 0 };
-    psa_invec_t in_vec[2];
-    psa_outvec_t out_vec[2];
+    psa_invec in_vec[2];
+    psa_outvec out_vec[2];
 
-    psa_attest_ipc.type = type;
-    psa_attest_ipc.alg = alg;
-
-    in_vec[0] = (psa_invec_t) {
-        &psa_attest_ipc,
-        sizeof(psa_attest_ipc_inject_t)
+    in_vec[0] = (psa_invec) {
+        &type,
+        sizeof(psa_key_type_t)
     };
-    in_vec[1] = (psa_invec_t) {
+    in_vec[1] = (psa_invec) {
         key_data, key_data_length
     };
-    out_vec[0] = (psa_outvec_t) {
+    out_vec[0] = (psa_outvec) {
         public_key_data, public_key_data_size
     };
-    out_vec[1] = (psa_outvec_t) {
+    out_vec[1] = (psa_outvec) {
         public_key_data_length, sizeof(*public_key_data_length)
     };
 
