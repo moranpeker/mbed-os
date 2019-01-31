@@ -1,0 +1,219 @@
+// ---------------------------------- Includes ---------------------------------
+#include "spm_panic.h"
+#include "spm_server.h"
+#include "spm/psa_defs.h"
+#include "spm/spm_client.h"
+
+#define PSA_ATTEST_SECURE 1
+#include "psa_attestation_srv_partition.h"
+#include "psa_initial_attestation_api.h"
+#include "attestation.h"
+#include "psa_inject_attestation_key.h"
+#include <string.h>
+#include "mbedtls/entropy.h"
+#include "psa_attest_platform_spe.h"
+#include "crypto.h"
+
+#if defined(MBEDTLS_PLATFORM_C)
+#include "mbedtls/platform.h"
+#else
+#define mbedtls_calloc calloc
+#define mbedtls_free   free
+#endif
+
+int32_t caller_id = 0; // global
+
+static void put_caller_id(psa_msg_t msg)
+{
+    caller_id = psa_identity(msg.handle);
+}
+
+// ------------------------- Partition's Main Thread ---------------------------
+
+static void psa_attest_get_token(void)
+{
+    psa_msg_t msg = { 0 };
+    enum psa_attest_err_t status = PSA_ATTEST_ERR_SUCCESS;
+    
+    psa_get(PSA_ATTEST_GET_TOKEN, &msg);
+    switch (msg.type) {
+        case PSA_IPC_CONNECT:
+        case PSA_IPC_DISCONNECT: {
+            break;
+        }
+        case PSA_IPC_CALL: {
+            uint8_t *challenge_buff = NULL;
+            uint8_t *token_buff = NULL;
+            uint32_t token_size = 0;
+            uint32_t challenge_size = 0;
+            uint32_t bytes_read = 0;
+
+            challenge_buff = mbedtls_calloc(1, msg.in_size[0]);
+            if (challenge_buff == NULL) {
+                status = PSA_ATTEST_ERR_GENERAL;
+                break;
+            }
+            bytes_read = psa_read(msg.handle, 0,
+                                  challenge_buff, msg.in_size[0]);
+            if (bytes_read != msg.in_size[0]) {
+                mbedtls_free(challenge_buff);
+                SPM_PANIC("SPM read length mismatch");
+            }
+
+            psa_invec_t in_vec[1] = { { challenge_buff, msg.in_size[0] } };
+            psa_outvec_t out_vec[1] = { { token_buff, token_size } };
+
+            status = initial_attest_get_token(in_vec, 1, out_vec, 1);
+            if (status == PSA_ATTEST_ERR_SUCCESS)
+            {
+                psa_write(msg.handle, 0, out_vec[0].base, out_vec[0].len);
+            }
+
+            mbedtls_free(challenge_buff);
+            break;
+        }
+
+        default: {
+            SPM_PANIC("Unexpected message type %d!", (int)(msg.type));
+            break;
+        }
+    }
+
+    psa_reply(msg.handle, (psa_error_t) status);
+}
+
+static void psa_attest_get_token_size(void)
+{
+    psa_msg_t msg = { 0 };
+    enum psa_attest_err_t status = PSA_ATTEST_GET_TOKEN_SIZE;
+    
+    psa_get(PSA_ATTEST_GET_TOKEN, &msg);
+    switch (msg.type) {
+        case PSA_IPC_CONNECT:
+        case PSA_IPC_DISCONNECT: {
+            break;
+        }
+        case PSA_IPC_CALL: {
+            uint32_t challenge_size = 0;
+            uint32_t token_size = 0;
+            uint32_t bytes_read = 0;
+
+            bytes_read = psa_read(msg.handle, 0,
+                                  challenge_size, msg.in_size[0]);
+            if (bytes_read != msg.in_size[0]) {
+                SPM_PANIC("SPM read length mismatch");
+            }
+
+            psa_invec_t in_vec[1] = { { challenge_size, msg.in_size[0] } };
+            psa_outvec_t out_vec[1] = { { token_size, msg.out_size[0] } };
+
+            status = psa_initial_attest_get_token_size(in_vec, 1, out_vec, 1);
+            if (status == PSA_ATTEST_ERR_SUCCESS)
+            {
+                psa_write(msg.handle, 0, out_vec[0].base, out_vec[0].len);
+            }
+
+            break;
+        }
+
+        default: {
+            SPM_PANIC("Unexpected message type %d!", (int)(msg.type));
+            break;
+        }
+    }
+
+    psa_reply(msg.handle, (psa_error_t) status);
+}
+
+static void psa_attest_inject_key(void)
+{
+    psa_msg_t msg = { 0 };
+    psa_status_t status = PSA_SUCCESS;
+    
+    psa_get(PSA_ATTEST_INJECT_KEY, &msg);
+    switch (msg.type) {
+        case PSA_IPC_CONNECT:
+        case PSA_IPC_DISCONNECT: {
+            break;
+        }
+        case PSA_IPC_CALL: {
+            uint8_t *public_key_data = NULL;
+            size_t public_key_data_size;
+            size_t public_key_data_length = 0;
+            uint8_t *key_data = NULL;
+
+            uint32_t bytes_read = 0;
+            psa_attest_ipc_inject_t psa_attest = {0};
+
+            if (msg.in_size[0] != sizeof(psa_attest_ipc_inject_t)) {
+                status = PSA_ERROR_COMMUNICATION_FAILURE;
+                break;
+            }
+
+            bytes_read = psa_read(msg.handle, 0, &psa_attest, msg.in_size[0]);
+            if (bytes_read != msg.in_size[0]) {
+                SPM_PANIC("SPM read length mismatch");
+            }
+
+            public_key_data = mbedtls_calloc(1, msg.out_size[0]);
+            if (public_key_data == NULL) {
+                status = PSA_ERROR_INSUFFICIENT_MEMORY;
+                break;
+            }
+
+            key_data = mbedtls_calloc(1, msg.in_size[1]);
+            if (key_data == NULL) {
+                status = PSA_ERROR_INSUFFICIENT_MEMORY;
+                mbedtls_free(public_key_data);
+                break;
+            }
+
+            bytes_read = psa_read(msg.handle, 1,
+                key_data, msg.in_size[1]);
+            if (bytes_read != msg.in_size[1]) {
+                SPM_PANIC("SPM read length mismatch");
+            }
+
+            status = psa_attestation_inject_key_impl(key_data,
+                                                     msg.in_size[1],
+                                                     psa_attest.type,
+                                                     psa_attest.alg,
+                                                     public_key_data,
+                                                     msg.out_size[0],
+                                                     &public_key_data_length);
+
+            if (status == PSA_SUCCESS) {
+                psa_write(msg.handle, 0, public_key_data, public_key_data_length);
+            }
+
+            psa_write(msg.handle, 1,
+                      &public_key_data_length, sizeof(public_key_data_length));
+            mbedtls_free(public_key_data);
+            break;
+
+        }
+
+        default: {
+            SPM_PANIC("Unexpected message type %d!", (int)(msg.type));
+            break;
+        }
+    }
+
+    psa_reply(msg.handle, (psa_error_t) status);
+}
+
+void attest_main(void *ptr)
+{
+    while (1) {
+        uint32_t signals = psa_wait_any(PSA_BLOCK);
+        if (signals & PSA_ATTEST_GET_TOKEN) {
+            psa_attest_get_token();
+        }
+        if (signals & PSA_ATTEST_GET_TOKEN_SIZE) {
+            psa_attest_get_token_size();
+        }
+        if (signals & PSA_ATTEST_INJECT_KEY) {
+            psa_attest_inject_key();
+        }
+    }
+}
