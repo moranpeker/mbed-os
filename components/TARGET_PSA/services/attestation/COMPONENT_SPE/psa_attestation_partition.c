@@ -19,11 +19,11 @@
 #define mbedtls_free   free
 #endif
 
-int32_t caller_id = 0; // global
+int32_t g_caller_id = 0;
 
-static void put_caller_id(psa_msg_t msg)
+static void set_caller_id(psa_msg_t msg)
 {
-    caller_id = psa_identity(msg.handle);
+    g_caller_id = psa_identity(msg.handle);
 }
 
 // ------------------------- Partition's Main Thread ---------------------------
@@ -68,6 +68,7 @@ static void psa_attest_get_token(void)
                 break;
             }
 
+            set_caller_id(msg);
             status = initial_attest_get_token(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)
             {
@@ -118,6 +119,7 @@ static void psa_attest_get_token_size(void)
                 break;
             }
 
+            set_caller_id(msg);            
             status = psa_initial_attest_get_token_size(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)
             {

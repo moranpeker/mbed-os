@@ -10,6 +10,8 @@
 #include "attestation.h"
 #include <string.h>
 
+int32_t g_caller_id = 0;
+
 enum psa_attest_err_t
 psa_initial_attest_get_token(const uint8_t *challenge_obj,
                              uint32_t       challenge_size,

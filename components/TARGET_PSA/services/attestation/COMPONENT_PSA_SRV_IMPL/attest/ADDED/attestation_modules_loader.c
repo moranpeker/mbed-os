@@ -16,6 +16,8 @@
 #include "attestation.h"
 #include "crypto.h"
 
+extern int32_t g_caller_id;
+
 #define ATTEST_PUB_KEY_SHA_256_SIZE (32u)
 
 static enum tfm_plat_err_t attest_public_key_sha256(uint32_t *size, uint8_t *buf)
@@ -101,7 +103,7 @@ static inline void copy_id(uint8_t *p_dst, uint8_t *p_src, size_t size)
 
 enum psa_attest_err_t attest_get_caller_client_id(int32_t *caller_id)
 {
-    *caller_id = 0;
+    *caller_id = g_caller_id;
     return PSA_ATTEST_ERR_SUCCESS; 
 }
 
