@@ -8,6 +8,7 @@
 #include "psa_attest_inject_key.h"
 #include "crypto.h"
 #include "psa/client.h"
+#include "psa_attest_srv_ifs.h"
 
 #define MINOR_VER 1
 
@@ -20,7 +21,7 @@ psa_attestation_inject_key(const uint8_t *key_data,
                            size_t *public_key_data_length)
 {
     psa_handle_t handle = PSA_NULL_HANDLE;    
-    psa_error_t call_error = PSA_SUCCESS;
+    psa_status_t call_error = PSA_SUCCESS;
     psa_invec in_vec[2];
     psa_outvec out_vec[2];
 
@@ -48,7 +49,7 @@ psa_attestation_inject_key(const uint8_t *key_data,
     psa_close(handle);
 
     if (call_error < 0) {
-        call_error = (psa_error_t) PSA_ERROR_COMMUNICATION_FAILURE;
+        call_error = PSA_ERROR_COMMUNICATION_FAILURE;
     }
-    return ((psa_status_t)call_error);
+    return call_error;
 }

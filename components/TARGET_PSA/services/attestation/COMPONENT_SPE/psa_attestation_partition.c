@@ -3,13 +3,12 @@
 #include "psa/client.h"
 
 #define PSA_ATTEST_SECURE 1
-#include "psa_attestation_srv_partition.h"
-#include "psa_initial_attestation_api.h"
+#include "psa_attest_srv_partition.h"
+#include "psa_initial_attestation.h"
+#include "psa_inject_attestation_key_impl.h"
 #include "attestation.h"
-#include "psa_inject_attestation_key.h"
 #include <string.h>
 #include "mbedtls/entropy.h"
-#include "psa_attest_platform_spe.h"
 #include "crypto.h"
 
 #if defined(MBEDTLS_PLATFORM_C)
@@ -43,7 +42,6 @@ static void psa_attest_get_token(void)
             uint8_t *challenge_buff = NULL;
             uint8_t *token_buff = NULL;
             uint32_t token_size = 0;
-            uint32_t challenge_size = 0;
             uint32_t bytes_read = 0;
 
             challenge_buff = mbedtls_calloc(1, msg.in_size[0]);
@@ -85,7 +83,7 @@ static void psa_attest_get_token(void)
         }
     }
 
-    psa_reply(msg.handle, (psa_error_t) status);
+    psa_reply(msg.handle, status);
 }
 
 static void psa_attest_get_token_size(void)
@@ -105,13 +103,13 @@ static void psa_attest_get_token_size(void)
             uint32_t bytes_read = 0;
 
             bytes_read = psa_read(msg.handle, 0,
-                                  challenge_size, msg.in_size[0]);
+                                  &challenge_size, msg.in_size[0]);
             if (bytes_read != msg.in_size[0]) {
                 SPM_PANIC("SPM read length mismatch");
             }
 
-            psa_invec in_vec[1] = { { challenge_size, msg.in_size[0] } };
-            psa_outvec out_vec[1] = { { token_size, msg.out_size[0] } };
+            psa_invec in_vec[1] = { { &challenge_size, msg.in_size[0] } };
+            psa_outvec out_vec[1] = { { &token_size, msg.out_size[0] } };
 
             status = attest_init();
             if( status != PSA_ATTEST_ERR_SUCCESS )
@@ -120,7 +118,7 @@ static void psa_attest_get_token_size(void)
             }
 
             set_caller_id(msg);            
-            status = psa_initial_attest_get_token_size(in_vec, 1, out_vec, 1);
+            status = initial_attest_get_token_size(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)
             {
                 psa_write(msg.handle, 0, out_vec[0].base, out_vec[0].len);
@@ -135,7 +133,7 @@ static void psa_attest_get_token_size(void)
         }
     }
 
-    psa_reply(msg.handle, (psa_error_t) status);
+    psa_reply(msg.handle, status);
 }
 
 static void psa_attest_inject_key(void)
@@ -151,13 +149,11 @@ static void psa_attest_inject_key(void)
         }
         case PSA_IPC_CALL: {
             uint8_t *public_key_data = NULL;
-            size_t public_key_data_size;
             size_t public_key_data_length = 0;
             uint8_t *key_data = NULL;
             psa_key_type_t type;
 
             uint32_t bytes_read = 0;
-            psa_attest_ipc_inject_t psa_attest = {0};
 
             if (msg.in_size[0] != sizeof(psa_key_type_t)) {
                 status = PSA_ERROR_COMMUNICATION_FAILURE;
@@ -212,7 +208,7 @@ static void psa_attest_inject_key(void)
         }
     }
 
-    psa_reply(msg.handle, (psa_error_t) status);
+    psa_reply(msg.handle, status);
 }
 
 void attest_main(void *ptr)
