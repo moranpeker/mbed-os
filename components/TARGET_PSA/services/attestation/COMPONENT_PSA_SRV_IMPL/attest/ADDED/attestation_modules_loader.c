@@ -144,7 +144,7 @@ enum tfm_plat_err_t tfm_plat_get_hw_version(uint32_t *size, uint8_t *buf)
 
 enum tfm_plat_err_t tfm_plat_get_implementation_id(uint32_t *size, uint8_t *buf)
 {
-    memcpy(buf, temp_data, *size);
+    memcpy(buf, impl_id_data, *size);
     return PSA_ATTEST_ERR_SUCCESS;
 }
 

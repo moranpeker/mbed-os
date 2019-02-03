@@ -61,6 +61,13 @@ static void psa_attest_get_token(void)
             psa_invec in_vec[1] = { { challenge_buff, msg.in_size[0] } };
             psa_outvec out_vec[1] = { { token_buff, token_size } };
 
+            status = attest_init();
+            if( status != PSA_ATTEST_ERR_SUCCESS )
+            {
+                mbedtls_free(challenge_buff);
+                break;
+            }
+
             status = initial_attest_get_token(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)
             {
@@ -104,6 +111,12 @@ static void psa_attest_get_token_size(void)
 
             psa_invec in_vec[1] = { { challenge_size, msg.in_size[0] } };
             psa_outvec out_vec[1] = { { token_size, msg.out_size[0] } };
+
+            status = attest_init();
+            if( status != PSA_ATTEST_ERR_SUCCESS )
+            {
+                break;
+            }
 
             status = psa_initial_attest_get_token_size(in_vec, 1, out_vec, 1);
             if (status == PSA_ATTEST_ERR_SUCCESS)

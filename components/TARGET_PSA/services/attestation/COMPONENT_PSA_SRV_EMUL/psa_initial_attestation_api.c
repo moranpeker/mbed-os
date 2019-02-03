@@ -45,6 +45,11 @@ psa_initial_attest_get_token_size(uint32_t  challenge_size,
 {
     enum psa_attest_err_t err;
 
+    err = attest_init();
+    if (err != PSA_ATTEST_ERR_SUCCESS) {
+        return err;
+    }
+    
     psa_invec in_vec[1] = { { &challenge_size, sizeof(challenge_size) } };
     psa_outvec out_vec[1] = { { token_size, sizeof(*token_size) } };
 

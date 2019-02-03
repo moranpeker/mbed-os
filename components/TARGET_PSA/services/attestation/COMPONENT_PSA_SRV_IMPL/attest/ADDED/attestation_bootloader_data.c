@@ -34,4 +34,4 @@
     
 };
 
-uint8_t temp_data[TEMP_DATA_SIZE] = {TEMP_DATA};
+uint8_t impl_id_data[TEMP_IMPL_ID_DATA_SIZE] = {TEMP_IMPL_ID_DATA};

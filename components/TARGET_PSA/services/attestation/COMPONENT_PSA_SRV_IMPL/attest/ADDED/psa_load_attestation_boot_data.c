@@ -11,9 +11,27 @@
 #include "attestation_bootloader_data.h"
 #include "tfm_boot_status.h"
 
+/*!
+ * \var shared_data_init_done
+ *
+ * \brief Indicates whether shared data area was already initialized.
+ *
+ */
+static uint32_t shared_data_init_done;
+
+/*!
+ * \def SHARED_DATA_INITIALZED
+ *
+ * \brief Indicates that shared data was already initialized.
+ */
+#define SHARED_DATA_INITIALZED   (1u)
+
 enum psa_attest_err_t
 attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
 {
+    if (shared_data_init_done == SHARED_DATA_INITIALZED) {
+        return PSA_ATTEST_ERR_SUCCESS;
+    }
     // uint8_t *buf_start = ptr;
     struct shared_data_tlv_header *tlv_header;
     struct shared_data_tlv_entry *tlv_entry;
@@ -50,5 +68,7 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
             tlv_header->tlv_tot_len += tlv_entry->tlv_len;
         }
     }
+
+    shared_data_init_done = SHARED_DATA_INITIALZED;
     return PSA_ATTEST_ERR_SUCCESS;
 }
