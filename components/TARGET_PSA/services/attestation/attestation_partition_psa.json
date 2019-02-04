@@ -4,8 +4,8 @@
   "priority": "NORMAL",
   "id": "0x00000025",
   "entry_point": "attest_main",
-  "stack_size": "0x4000",
-  "heap_size": "0x400",
+  "stack_size": "0x2000",
+  "heap_size": "0x2000",
   "services": [
     {
       "name": "PSA_ATTEST_GET_TOKEN_ID",

@@ -16,9 +16,7 @@
 extern "C" {
 #endif
 
-#define BOOT_TFM_SHARED_DATA_SIZE 0x100
-
-extern uint8_t temp_ram_page_data[];
+extern const uint8_t temp_ram_page_data[];
 
 #define S_RAM_ALIAS_BASE  (temp_ram_page_data)
 

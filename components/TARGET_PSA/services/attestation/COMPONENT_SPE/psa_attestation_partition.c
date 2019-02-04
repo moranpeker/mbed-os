@@ -11,11 +11,11 @@
 #include "mbedtls/entropy.h"
 #include "crypto.h"
 
-#if defined(MBEDTLS_PLATFORM_C)
+#if defined(PLATFORM_C)
 #include "mbedtls/platform.h"
 #else
-#define mbedtls_calloc calloc
-#define mbedtls_free   free
+#define calloc calloc
+#define free   free
 #endif
 
 int32_t g_caller_id = 0;
@@ -44,7 +44,7 @@ static void psa_attest_get_token(void)
             uint32_t token_size = 0;
             uint32_t bytes_read = 0;
 
-            challenge_buff = mbedtls_calloc(1, msg.in_size[0]);
+            challenge_buff = calloc(1, msg.in_size[0]);
             if (challenge_buff == NULL) {
                 status = PSA_ATTEST_ERR_GENERAL;
                 break;
@@ -52,7 +52,7 @@ static void psa_attest_get_token(void)
             bytes_read = psa_read(msg.handle, 0,
                                   challenge_buff, msg.in_size[0]);
             if (bytes_read != msg.in_size[0]) {
-                mbedtls_free(challenge_buff);
+                free(challenge_buff);
                 SPM_PANIC("SPM read length mismatch");
             }
 
@@ -62,7 +62,7 @@ static void psa_attest_get_token(void)
             status = attest_init();
             if( status != PSA_ATTEST_ERR_SUCCESS )
             {
-                mbedtls_free(challenge_buff);
+                free(challenge_buff);
                 break;
             }
 
@@ -73,7 +73,7 @@ static void psa_attest_get_token(void)
                 psa_write(msg.handle, 0, out_vec[0].base, out_vec[0].len);
             }
 
-            mbedtls_free(challenge_buff);
+            free(challenge_buff);
             break;
         }
 
@@ -165,16 +165,16 @@ static void psa_attest_inject_key(void)
                 SPM_PANIC("SPM read length mismatch");
             }
 
-            public_key_data = mbedtls_calloc(1, msg.out_size[0]);
+            public_key_data = calloc(1, msg.out_size[0]);
             if (public_key_data == NULL) {
                 status = PSA_ERROR_INSUFFICIENT_MEMORY;
                 break;
             }
 
-            key_data = mbedtls_calloc(1, msg.in_size[1]);
+            key_data = calloc(1, msg.in_size[1]);
             if (key_data == NULL) {
                 status = PSA_ERROR_INSUFFICIENT_MEMORY;
-                mbedtls_free(public_key_data);
+                free(public_key_data);
                 break;
             }
 
@@ -197,7 +197,7 @@ static void psa_attest_inject_key(void)
 
             psa_write(msg.handle, 1,
                       &public_key_data_length, sizeof(public_key_data_length));
-            mbedtls_free(public_key_data);
+            free(public_key_data);
             break;
 
         }
