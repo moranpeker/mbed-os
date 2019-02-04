@@ -23,9 +23,10 @@ psa_initial_attest_get_token(const uint8_t *challenge_obj,
     uint8_t *token_buff = NULL;
     psa_status_t err_call;
     psa_handle_t handle = PSA_NULL_HANDLE;
+    uint32_t token_buff_size = 0;
 
     psa_invec in_vec[1] = { { challenge_obj, challenge_size } };
-    psa_outvec out_vec[1] = { { token_buff, *token_size } };
+    psa_outvec out_vec[1] = { { token_buff, token_buff_size } };
 
     handle = psa_connect(PSA_ATTEST_GET_TOKEN_ID, MINOR_VER);
     if (handle <= 0) {
@@ -39,7 +40,9 @@ psa_initial_attest_get_token(const uint8_t *challenge_obj,
         err_call = PSA_ATTEST_ERR_GENERAL;
     }
 
-    *token_size = out_vec->len;
+    /* Copy output token to local buffer */
+    memcpy(token, out_vec[0].base, out_vec[0].len);
+    *token_size = out_vec[0].len;
 
     return ((enum psa_attest_err_t) err_call);
 }

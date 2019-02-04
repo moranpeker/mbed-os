@@ -39,13 +39,19 @@ psa_attestation_inject_key(const uint8_t *key_data,
         public_key_data_length, sizeof(*public_key_data_length)
     };
 
+    printf("psa_attestation_inject_key psa_connect \r\n");
+    
     handle = psa_connect(PSA_ATTEST_INJECT_KEY_ID, MINOR_VER);
     if (handle <= 0) {
         return (PSA_ERROR_COMMUNICATION_FAILURE);
     }
 
+    printf("psa_attestation_inject_key after psa_connect \r\n");    
+
     call_error = psa_call(handle, in_vec, 2, out_vec, 2);
 
+    printf("psa_attestation_inject_key after psa_call &d \r\n", call_error);    
+    
     psa_close(handle);
 
     if (call_error < 0) {

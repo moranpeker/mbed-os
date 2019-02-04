@@ -34,7 +34,7 @@
 
 
 /* Threads stacks */
-MBED_ALIGN(8) uint8_t attest_srv_thread_stack[16384] = {0};
+MBED_ALIGN(8) uint8_t attest_srv_thread_stack[4096] = {0};
 
 /* Threads control blocks */
 osRtxThread_t attest_srv_thread_cb = {0};
@@ -46,7 +46,7 @@ osThreadAttr_t attest_srv_thread_attr = {
     .cb_mem = &attest_srv_thread_cb,
     .cb_size = sizeof(attest_srv_thread_cb),
     .stack_mem = attest_srv_thread_stack,
-    .stack_size = 16384,
+    .stack_size = 4096,
     .priority = osPriorityNormal,
     .tz_module = 0,
     .reserved = 0
