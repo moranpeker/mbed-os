@@ -44,8 +44,7 @@ static inline void copy_key(uint8_t *p_dst, const uint8_t *p_src, size_t size)
 static psa_status_t get_curve(psa_key_type_t type, enum ecc_curve_t *curve_type)
 {
     psa_ecc_curve_t curve = PSA_KEY_TYPE_GET_CURVE(type);
-    switch( curve )
-    {
+    switch (curve) {
         case PSA_ECC_CURVE_SECP256R1:
             *curve_type = P_256;
             break;
@@ -62,7 +61,7 @@ static psa_status_t get_curve(psa_key_type_t type, enum ecc_curve_t *curve_type)
             *curve_type = X448;
             break;
         default:
-            return( PSA_ERROR_NOT_SUPPORTED );
+            return (PSA_ERROR_NOT_SUPPORTED);
     }
 
     return PSA_SUCCESS;
@@ -73,7 +72,7 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
                                 uint32_t          size,
                                 struct ecc_key_t *ecc_key,
                                 enum ecc_curve_t *curve_type)
-                                
+
 {
     uint8_t *key_dst = NULL;
     uint8_t *key_src;
@@ -95,35 +94,47 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
     psa_key_handle_t handle = 0;
 
     crypto_ret = psa_crypto_init();
-    if(crypto_ret != PSA_SUCCESS)
+    if (crypto_ret != PSA_SUCCESS)
+    {
         return TFM_PLAT_ERR_SYSTEM_ERR;
+    }
 
-    crypto_ret = psa_open_key( PSA_KEY_LIFETIME_PERSISTENT, key_id, &handle );
-    if(crypto_ret != PSA_SUCCESS)
+    crypto_ret = psa_open_key(PSA_KEY_LIFETIME_PERSISTENT, key_id, &handle);
+    if (crypto_ret != PSA_SUCCESS)
+    {
         return TFM_PLAT_ERR_SYSTEM_ERR;
+    }
 
-    crypto_ret = psa_get_key_information( handle, &type, &bits );
-    if(crypto_ret != PSA_SUCCESS)
+    crypto_ret = psa_get_key_information(handle, &type, &bits);
+    if (crypto_ret != PSA_SUCCESS)
+    {
         return TFM_PLAT_ERR_SYSTEM_ERR;
+    }
     if (!PSA_KEY_TYPE_IS_ECC(type))
+    {
         return TFM_PLAT_ERR_SYSTEM_ERR;
-    public_type = PSA_KEY_TYPE_PUBLIC_KEY_OF_KEYPAIR( type );
-    public_key_size = PSA_KEY_EXPORT_MAX_SIZE( public_type, bits );
-    public_key = (uint8_t*) malloc( public_key_size );
-    if( public_key == NULL )
+    }
+    public_type = PSA_KEY_TYPE_PUBLIC_KEY_OF_KEYPAIR(type);
+    public_key_size = PSA_KEY_EXPORT_MAX_SIZE(public_type, bits);
+    public_key = (uint8_t *) malloc(public_key_size);
+    if (public_key == NULL)
+    {
         return TFM_PLAT_ERR_SYSTEM_ERR;
+    }
 
-    crypto_ret = psa_export_public_key( handle,
-                                        public_key, public_key_size,
-                                        &public_key_length );
-    if(crypto_ret != PSA_SUCCESS){
+    crypto_ret = psa_export_public_key(handle,
+                                       public_key, public_key_size,
+                                       &public_key_length);
+    if (crypto_ret != PSA_SUCCESS)
+    {
         free(public_key);
         return TFM_PLAT_ERR_SYSTEM_ERR;
     }
 
     /* Set the EC curve type which the key belongs to */
     crypto_ret = get_curve(type, curve_type);
-    if(crypto_ret != PSA_SUCCESS){
+    if (crypto_ret != PSA_SUCCESS)
+    {
         free(public_key);
         return TFM_PLAT_ERR_SYSTEM_ERR;
     }
@@ -138,30 +149,34 @@ tfm_plat_get_initial_attest_key(uint8_t          *key_buf,
     ** - where m is the bit size associated with the curve
     ** - 1 byte + 2 * point size
     */
-    initial_attestation_public_x_key_size = ceil((public_key_length - 1)/2);
-    initial_attestation_public_y_key_size = ceil((public_key_length - 1)/2);
+    initial_attestation_public_x_key_size = ceil((public_key_length - 1) / 2);
+    initial_attestation_public_y_key_size = ceil((public_key_length - 1) / 2);
 
     /* Copy the x-coordinate of public key to the buffer */
-    if (initial_attestation_public_x_key_size != 0) {
-        key_src = key_src + ONE_BYTE;    
+    if (initial_attestation_public_x_key_size != 0)
+    {
+        key_src = key_src + ONE_BYTE;
         key_size = initial_attestation_public_x_key_size;
         copy_key(key_dst, key_src, key_size);
         ecc_key->pubx_key = key_dst;
         ecc_key->pubx_key_size = key_size;
         key_dst  = key_dst + key_size;
-    } else {
+    } else
+    {
         ecc_key->pubx_key = NULL;
         ecc_key->pubx_key_size = 0;
     }
 
     /* Copy the y-coordinate of public key to the buffer */
-    if (initial_attestation_public_y_key_size != 0) {
+    if (initial_attestation_public_y_key_size != 0)
+    {
         key_src += initial_attestation_public_x_key_size;
         key_size = initial_attestation_public_y_key_size;
         copy_key(key_dst, key_src, key_size);
         ecc_key->puby_key = key_dst;
         ecc_key->puby_key_size = key_size;
-    } else {
+    } else
+    {
         ecc_key->puby_key = NULL;
         ecc_key->puby_key_size = 0;
     }

@@ -20,7 +20,7 @@ psa_attestation_inject_key(const uint8_t *key_data,
                            size_t public_key_data_size,
                            size_t *public_key_data_length)
 {
-    psa_handle_t handle = PSA_NULL_HANDLE;    
+    psa_handle_t handle = PSA_NULL_HANDLE;
     psa_status_t call_error = PSA_SUCCESS;
     psa_invec in_vec[2];
     psa_outvec out_vec[2];
@@ -44,8 +44,8 @@ psa_attestation_inject_key(const uint8_t *key_data,
         return (PSA_ERROR_COMMUNICATION_FAILURE);
     }
 
-    call_error = psa_call(handle, in_vec, 2, out_vec, 2);    
-    
+    call_error = psa_call(handle, in_vec, 2, out_vec, 2);
+
     psa_close(handle);
 
     if (call_error < 0) {

@@ -10,15 +10,13 @@
 #include "attestation_key.h"
 
 enum psa_attest_err_t
-attest_get_and_register_initial_attestation_key(void)
-{
+attest_get_and_register_initial_attestation_key(void) {
     return PSA_ATTEST_ERR_SUCCESS;
 }
 
 enum psa_attest_err_t
 attest_check_memory_access(void *addr,
                            uint32_t size,
-                           enum attest_memory_access access)
-{
+                           enum attest_memory_access access) {
     return PSA_ATTEST_ERR_SUCCESS;
 }

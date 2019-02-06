@@ -32,7 +32,7 @@ static void psa_attest_get_token(void)
 {
     psa_msg_t msg = { 0 };
     enum psa_attest_err_t status = PSA_ATTEST_ERR_SUCCESS;
-    
+
     psa_get(PSA_ATTEST_GET_TOKEN, &msg);
     switch (msg.type) {
         case PSA_IPC_CONNECT:
@@ -67,16 +67,14 @@ static void psa_attest_get_token(void)
             psa_outvec out_vec[1] = { { token_buff, msg.out_size[0] } };
 
             status = attest_init();
-            if( status != PSA_ATTEST_ERR_SUCCESS )
-            {
+            if (status != PSA_ATTEST_ERR_SUCCESS) {
                 free(challenge_buff);
                 break;
             }
 
             set_caller_id(msg);
             status = initial_attest_get_token(in_vec, 1, out_vec, 1);
-            if (status == PSA_ATTEST_ERR_SUCCESS)
-            {
+            if (status == PSA_ATTEST_ERR_SUCCESS) {
                 psa_write(msg.handle, 0, out_vec[0].base, out_vec[0].len);
             }
 
@@ -97,7 +95,7 @@ static void psa_attest_get_token_size(void)
 {
     psa_msg_t msg = { 0 };
     enum psa_attest_err_t status = PSA_ATTEST_ERR_SUCCESS;
-    
+
     psa_get(PSA_ATTEST_GET_TOKEN_SIZE, &msg);
     switch (msg.type) {
         case PSA_IPC_CONNECT:
@@ -119,15 +117,13 @@ static void psa_attest_get_token_size(void)
             psa_outvec out_vec[1] = { { &token_size, msg.out_size[0] } };
 
             status = attest_init();
-            if( status != PSA_ATTEST_ERR_SUCCESS )
-            {
+            if (status != PSA_ATTEST_ERR_SUCCESS) {
                 break;
             }
 
-            set_caller_id(msg);            
+            set_caller_id(msg);
             status = initial_attest_get_token_size(in_vec, 1, out_vec, 1);
-            if (status == PSA_ATTEST_ERR_SUCCESS)
-            {
+            if (status == PSA_ATTEST_ERR_SUCCESS) {
                 psa_write(msg.handle, 0, out_vec[0].base, out_vec[0].len);
             }
 
@@ -147,7 +143,7 @@ static void psa_attest_inject_key(void)
 {
     psa_msg_t msg = { 0 };
     psa_status_t status = PSA_SUCCESS;
-    
+
     psa_get(PSA_ATTEST_INJECT_KEY, &msg);
     switch (msg.type) {
         case PSA_IPC_CONNECT:
@@ -186,7 +182,7 @@ static void psa_attest_inject_key(void)
             }
 
             bytes_read = psa_read(msg.handle, 1,
-                key_data, msg.in_size[1]);
+                                  key_data, msg.in_size[1]);
             if (bytes_read != msg.in_size[1]) {
                 SPM_PANIC("SPM read length mismatch");
             }

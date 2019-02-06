@@ -25,12 +25,12 @@ extern "C"
 #endif
 
 psa_status_t
-psa_attestation_inject_key_impl( const uint8_t *key_data,
-                                 size_t key_data_length,
-                                 psa_key_type_t type,
-                                 uint8_t *public_key_data,
-                                 size_t public_key_data_size,
-                                 size_t *public_key_data_length);
+psa_attestation_inject_key_impl(const uint8_t *key_data,
+                                size_t key_data_length,
+                                psa_key_type_t type,
+                                uint8_t *public_key_data,
+                                size_t public_key_data_size,
+                                size_t *public_key_data_length);
 
 #ifdef   __cplusplus
 }

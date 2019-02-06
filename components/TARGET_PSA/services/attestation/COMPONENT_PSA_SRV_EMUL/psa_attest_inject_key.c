@@ -15,12 +15,12 @@ psa_attestation_inject_key(const uint8_t *key_data,
                            size_t public_key_data_size,
                            size_t *public_key_data_length)
 {
-    psa_status_t status = PSA_SUCCESS;    
+    psa_status_t status = PSA_SUCCESS;
     status = psa_attestation_inject_key_impl(key_data,
                                              key_data_length,
                                              type,
                                              public_key_data,
                                              public_key_data_size,
                                              public_key_data_length);
-    return( status );
+    return (status);
 }

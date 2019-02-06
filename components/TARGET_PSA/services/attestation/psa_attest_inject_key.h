@@ -40,7 +40,7 @@ extern "C"
  * \param type              Key type -  must be a ECC key type
  *                          (a \c PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_XXX) value).
  * \param[out] data         Buffer where the key data is to be written.
- * \param data_size         Size of the \p data buffer in bytes -  
+ * \param data_size         Size of the \p data buffer in bytes -
  *                          needs to be bigger then the max size of the public part.
  * \param[out] data_length  On success, the number of bytes
  *                          that make up the key data.
@@ -63,12 +63,12 @@ extern "C"
  *         results in this error code.
  */
 psa_status_t
-psa_attestation_inject_key( const uint8_t *key_data,
-                            size_t key_data_length,
-                            psa_key_type_t type,
-                            uint8_t *public_key_data,
-                            size_t public_key_data_size,
-                            size_t *public_key_data_length);
+psa_attestation_inject_key(const uint8_t *key_data,
+                           size_t key_data_length,
+                           psa_key_type_t type,
+                           uint8_t *public_key_data,
+                           size_t public_key_data_size,
+                           size_t *public_key_data_length);
 
 #ifdef   __cplusplus
 }
