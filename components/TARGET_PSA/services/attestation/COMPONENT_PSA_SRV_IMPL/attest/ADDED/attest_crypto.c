@@ -140,7 +140,10 @@ t_cose_crypto_hash_start(struct t_cose_crypto_hash *hash_ctx,
 void t_cose_crypto_hash_update(struct t_cose_crypto_hash *hash_ctx,
                                struct useful_buf_c data_to_hash)
 {
-    psa_hash_update(&hash_handle, data_to_hash.ptr, data_to_hash.len);
+    if(data_to_hash.ptr != NULL)
+    {
+        psa_hash_update(&hash_handle, data_to_hash.ptr, data_to_hash.len);
+    }
 }
 
 enum t_cose_err_t

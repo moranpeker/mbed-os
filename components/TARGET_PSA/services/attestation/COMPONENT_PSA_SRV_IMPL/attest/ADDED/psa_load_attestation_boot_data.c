@@ -65,7 +65,6 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
         {
             memcpy(ptr, (const void *)tlv_entry, tlv_entry->tlv_len);
             ptr += tlv_entry->tlv_len;
-            tlv_header->tlv_tot_len += tlv_entry->tlv_len;
         }
     }
 

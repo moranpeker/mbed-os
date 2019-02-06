@@ -41,7 +41,6 @@ static void psa_attest_get_token(void)
         case PSA_IPC_CALL: {
             uint8_t *challenge_buff = NULL;
             uint8_t *token_buff = NULL;
-            uint32_t token_size = 0;
             uint32_t bytes_read = 0;
 
             challenge_buff = calloc(1, msg.in_size[0]);
@@ -56,8 +55,15 @@ static void psa_attest_get_token(void)
                 SPM_PANIC("SPM read length mismatch");
             }
 
+            token_buff = calloc(1, msg.out_size[0]);
+            if (token_buff == NULL) {
+                status = PSA_ATTEST_ERR_GENERAL;
+                break;
+            }
+            // uint8_t token_buff[msg.out_size[0]];
+
             psa_invec in_vec[1] = { { challenge_buff, msg.in_size[0] } };
-            psa_outvec out_vec[1] = { { token_buff, token_size } };
+            psa_outvec out_vec[1] = { { token_buff, msg.out_size[0] } };
 
             status = attest_init();
             if( status != PSA_ATTEST_ERR_SUCCESS )
@@ -89,17 +95,17 @@ static void psa_attest_get_token(void)
 static void psa_attest_get_token_size(void)
 {
     psa_msg_t msg = { 0 };
-    enum psa_attest_err_t status = PSA_ATTEST_GET_TOKEN_SIZE;
+    enum psa_attest_err_t status = PSA_ATTEST_ERR_SUCCESS;
     
-    psa_get(PSA_ATTEST_GET_TOKEN, &msg);
+    psa_get(PSA_ATTEST_GET_TOKEN_SIZE, &msg);
     switch (msg.type) {
         case PSA_IPC_CONNECT:
         case PSA_IPC_DISCONNECT: {
             break;
         }
         case PSA_IPC_CALL: {
-            uint32_t challenge_size = 0;
-            uint32_t token_size = 0;
+            uint32_t challenge_size;
+            uint32_t token_size;
             uint32_t bytes_read = 0;
 
             bytes_read = psa_read(msg.handle, 0,
