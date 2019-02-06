@@ -6,7 +6,7 @@
  */
  #include "attestation_bootloader_data.h"
 
-// Temp boodloader data - conatians mandatory claims
+/* Temporary Boodloader data - conatians mandatory claims */
 __attribute__ ((aligned(4)))
 const uint8_t temp_ram_page_data[] = 
 {
@@ -34,4 +34,7 @@ const uint8_t temp_ram_page_data[] =
     0x02, 0x00
 };
 
+/* Temporary Implementation ID data: mandatory claim represents the original
+** implementation signer of the attestation key and identifies the contract
+** between the report and verification*/
 uint8_t impl_id_data[TEMP_IMPL_ID_DATA_SIZE] = {TEMP_IMPL_ID_DATA};

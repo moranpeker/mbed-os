@@ -32,8 +32,8 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
     if (shared_data_init_done == SHARED_DATA_INITIALZED) {
         return PSA_ATTEST_ERR_SUCCESS;
     }
-    // uint8_t *buf_start = ptr;
     struct shared_data_tlv_header *tlv_header;
+    struct shared_data_tlv_header *ptr_tlv_header;    
     struct shared_data_tlv_entry *tlv_entry;
     uintptr_t tlv_end, offset;
 
@@ -51,10 +51,12 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
     {
         return PSA_ATTEST_ERR_INIT_FAILED;        
     } else {
-        memcpy(ptr, tlv_header, SHARED_DATA_HEADER_SIZE);
-        ptr += SHARED_DATA_HEADER_SIZE;
+        ptr_tlv_header = (struct shared_data_tlv_header *)ptr;
+        ptr_tlv_header->tlv_magic   = SHARED_DATA_TLV_INFO_MAGIC;
+        ptr_tlv_header->tlv_tot_len = SHARED_DATA_HEADER_SIZE;
     }
 
+    ptr += SHARED_DATA_HEADER_SIZE;
     /* Iterates over the TLV section and copy TLVs with requested major
      * type to the provided buffer.
      */
@@ -65,6 +67,7 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
         {
             memcpy(ptr, (const void *)tlv_entry, tlv_entry->tlv_len);
             ptr += tlv_entry->tlv_len;
+            ptr_tlv_header->tlv_tot_len += tlv_entry->tlv_len;
         }
     }
 
