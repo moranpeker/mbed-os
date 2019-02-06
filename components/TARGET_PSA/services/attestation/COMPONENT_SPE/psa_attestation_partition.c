@@ -4,7 +4,8 @@
 
 #define PSA_ATTEST_SECURE 1
 #include "psa_attest_srv_partition.h"
-#include "psa_initial_attestation.h"
+#include "psa_initial_attestation_api.h"
+#include "psa_attest_inject_key.h"
 #include "psa_inject_attestation_key_impl.h"
 #include "attestation.h"
 #include <string.h>

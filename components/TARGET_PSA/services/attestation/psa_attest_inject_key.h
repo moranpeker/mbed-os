@@ -28,7 +28,7 @@ extern "C"
  * \brief Generate or import a given key pair and export the public part in a binary format.
  *        Initial attestation key: Private key for ECDSA-P256 to sign initial attestation token.
  *                                 Attestation private key is a persistent key that saved to
- *                                 persistent storage with persistent storage id = 1.
+ *                                 persistent storage with persistent storage id = 17.
  *
  * \param[in] key_data      Buffer containing the private key data if given.
  *                          It must conain the format described in the documentation
