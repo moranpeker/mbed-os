@@ -36,6 +36,7 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
     struct shared_data_tlv_header *ptr_tlv_header;    
     struct shared_data_tlv_entry *tlv_entry;
     uintptr_t tlv_end, offset;
+    uint8_t curr_entry_data[SHARED_DATA_ENTRY_HEADER_SIZE];
 
     /* Get the boundaries of TLV section */
     tlv_header = (struct shared_data_tlv_header *)BOOT_TFM_SHARED_DATA_BASE;
@@ -62,10 +63,11 @@ attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len)
      */
     for(; offset < tlv_end; offset += tlv_entry->tlv_len)
     {
-        tlv_entry = (struct shared_data_tlv_entry *)offset;
+        memcpy(curr_entry_data, offset, SHARED_DATA_ENTRY_HEADER_SIZE);
+        tlv_entry = (struct shared_data_tlv_entry *)curr_entry_data;
         if (GET_MAJOR(tlv_entry->tlv_type) == major_type)
         {
-            memcpy(ptr, (const void *)tlv_entry, tlv_entry->tlv_len);
+            memcpy(ptr, (const void *)offset, tlv_entry->tlv_len);
             ptr += tlv_entry->tlv_len;
             ptr_tlv_header->tlv_tot_len += tlv_entry->tlv_len;
         }
