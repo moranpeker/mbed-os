@@ -167,6 +167,7 @@ static int32_t attest_get_tlv_by_module(uint8_t    module,
     struct shared_data_tlv_entry  *tlv_entry;
     uintptr_t tlv_end;
     uintptr_t tlv_curr;
+    uint8_t curr_entry_data[SHARED_DATA_ENTRY_HEADER_SIZE];    
 
     tlv_header = (struct shared_data_tlv_header *)boot_status;
     if (tlv_header->tlv_magic != SHARED_DATA_TLV_INFO_MAGIC) {
@@ -181,7 +182,8 @@ static int32_t attest_get_tlv_by_module(uint8_t    module,
     } else {
         /* Any subsequent call set to the next TLV entry */
         tlv_curr = (uintptr_t)(*tlv_ptr);
-        tlv_entry = (struct shared_data_tlv_entry *)(*tlv_ptr);
+        memcpy(curr_entry_data, *tlv_ptr, SHARED_DATA_ENTRY_HEADER_SIZE);
+        tlv_entry = (struct shared_data_tlv_entry *)curr_entry_data;
         tlv_curr  = tlv_curr + tlv_entry->tlv_len;
     }
 
@@ -189,10 +191,11 @@ static int32_t attest_get_tlv_by_module(uint8_t    module,
      * with requested module identifier
      */
     for(; tlv_curr < tlv_end; tlv_curr += tlv_entry->tlv_len) {
-        tlv_entry = (struct shared_data_tlv_entry *)tlv_curr;
+        memcpy(curr_entry_data, tlv_curr, SHARED_DATA_ENTRY_HEADER_SIZE);
+        tlv_entry = (struct shared_data_tlv_entry *)curr_entry_data;
         if (GET_IAS_MODULE(tlv_entry->tlv_type) == module) {
             *claim   = GET_IAS_CLAIM(tlv_entry->tlv_type);
-            *tlv_ptr = (uint8_t *)tlv_entry;
+            *tlv_ptr = (uint8_t *)tlv_curr;
             *tlv_len = tlv_entry ->tlv_len;
             return 1;
         }
