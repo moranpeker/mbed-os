@@ -18,11 +18,13 @@ extern "C" {
  * \brief Security lifecycle of the device
  */
 enum tfm_security_lifecycle_t {
-    TFM_SLC_ASSEMBLY = 0,
-    TFM_SLC_PROVISONING,
-    TFM_SLC_PROVISIONED,
-    TFM_SLC_CONSTRAINED_DEBUG,
-    TFM_SLC_UNCONSTRAINED_DEBUG,
+    TFM_SLC_UNKNOWN                   = 0x0000u,
+    TFM_SLC_ASSEMBLY_AND_TEST         = 0x1000u,
+    TFM_SLC_PSA_ROT_PROVISIONING      = 0x2000u,
+    TFM_SLC_SECURED                   = 0x3000u,
+    TFM_SLC_NON_PSA_ROT_DEBUG         = 0x4000u,
+    TFM_SLC_RECOVERABLE_PSA_ROT_DEBUG = 0x5000u,
+    TFM_SLC_DECOMMISSIONED            = 0x6000u,
 };
 
 /**

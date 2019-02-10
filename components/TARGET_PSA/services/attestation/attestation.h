@@ -18,9 +18,9 @@ extern "C" {
 /*!
  * \brief Type of memory access
  */
-enum attest_memory_access {
-    ACCESS_RO = 1,
-    ACCESS_RW = 2,
+enum attest_memory_access_t {
+    TFM_ATTEST_ACCESS_RO = 1,
+    TFM_ATTEST_ACCESS_RW = 2,
 };
 
 /*!
@@ -37,8 +37,7 @@ enum psa_attest_err_t
 attest_get_boot_data(uint8_t major_type, void *ptr, uint32_t len);
 
 /*!
- * \brief Get the ID of the caller thread. The ID might received as an input
- *        parameter from SPM.
+ * \brief Get the ID of the caller thread.
  *
  * \param[out]  caller_id  Pointer where to store caller ID
  *
@@ -60,7 +59,7 @@ attest_get_caller_client_id(int32_t *caller_id);
 enum psa_attest_err_t
 attest_check_memory_access(void *addr,
                            uint32_t size,
-                           enum attest_memory_access access);
+                           enum attest_memory_access_t access);
 
 /*!
  * \brief Initialise the initial attestation service during the TF-M boot up
@@ -85,7 +84,7 @@ enum psa_attest_err_t attest_init(void);
  */
 enum psa_attest_err_t
 initial_attest_get_token(const psa_invec  *in_vec,  uint32_t num_invec,
-                         psa_outvec *out_vec, uint32_t num_outvec);
+                               psa_outvec *out_vec, uint32_t num_outvec);
 
 /**
  * \brief Get the size of the initial attestation token
@@ -101,7 +100,7 @@ initial_attest_get_token(const psa_invec  *in_vec,  uint32_t num_invec,
  */
 enum psa_attest_err_t
 initial_attest_get_token_size(const psa_invec  *in_vec,  uint32_t num_invec,
-                              psa_outvec *out_vec, uint32_t num_outvec);
+                                    psa_outvec *out_vec, uint32_t num_outvec);
 #ifdef __cplusplus
 }
 #endif

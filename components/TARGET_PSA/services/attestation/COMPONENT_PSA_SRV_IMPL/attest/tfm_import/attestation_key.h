@@ -43,7 +43,16 @@ extern "C" {
  * \retval  PSA_ATTEST_ERR_SUCCESS   Key(s) was registered.
  * \retval  PSA_ATTEST_ERR_GENERAL   Key(s) could not be registered.
  */
-enum psa_attest_err_t attest_get_and_register_initial_attestation_key(void);
+enum psa_attest_err_t attest_register_initial_attestation_key(void);
+
+/**
+ * \brief Unregister the initial attestation key(s) from crypto service to do
+ *        not occupy key slot(s).
+ *
+ * \retval  PSA_ATTEST_ERR_SUCCESS   Key(s) was unregistered.
+ * \retval  PSA_ATTEST_ERR_GENERAL   Key(s) could not be unregistered.
+ */
+enum psa_attest_err_t attest_unregister_initial_attestation_key(void);
 
 #ifdef __cplusplus
 }

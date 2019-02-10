@@ -23,6 +23,32 @@ extern "C" {
 #define TLV_MAJOR_IAS      0x1
 
 /**
+ * The shared data between boot loader and runtime SW is TLV encoded. The
+ * shared data is stored in a well known location in secure memory and this is
+ * a contract between boot loader and runtime SW.
+ *
+ * The structure of shared data must be the following:
+ *  - At the beginning there must be a header: struct shared_data_tlv_header
+ *    This contains a magic number and a size field which covers the entire
+ *    size of the shared data area including this header.
+ *  - After the header there come the entries which are composed from an entry
+ *    header structure: struct shared_data_tlv_entry and the data. In the entry
+ *    header is a type field (tly_type) which identify the consumer of the
+ *    entry in the runtime SW and specify the subtype of that data item. There
+ *    is a size field (tlv_len) which covers the size of the entry header and
+ *    the data. After this structure comes the actual data.
+ *  - Arbitrary number and size of data entry can be in the shared memory area.
+ *
+ * This table gives of overview about the tlv_type field in the entry header.
+ * The tlv_type always composed from a major and minor number. Major number
+ * identifies the addressee in runtime SW, who should process the data entry.
+ * Minor number used to encode more info about the data entry. The actual
+ * definition of minor number could change per major number. In case of boot
+ * status data, which is going to be processed by initial attestation service
+ * the minor number is split further to two part: sw_module and claim. The
+ * sw_module identifies the SW component in the system which the data item
+ * belongs to and the claim part identifies the exact type of the data.
+ *
  * |---------------------------------------|
  * |            tlv_type (16)              |
  * |---------------------------------------|
@@ -35,7 +61,7 @@ extern "C" {
  */
 
 /* Initial attestation: SW components / SW modules
- * This is list is intended to be adjusted per device. It contains more SW
+ * This list is intended to be adjusted per device. It contains more SW
  * components than currently available in TF-M project. It serves as an example,
  * what kind of SW components might be available.
  */
@@ -124,9 +150,9 @@ extern "C" {
 #define MINOR_MASK 0xFFF   /* 12 bit */
 
 #define SET_TLV_TYPE(major, minor) \
-        (((major & MAJOR_MASK) << MAJOR_POS) | (minor & MINOR_MASK))
-#define GET_MAJOR(tlv_type) (tlv_type >> MAJOR_POS)
-#define GET_MINOR(tlv_type) (tlv_type &  MINOR_MASK)
+        ((((major) & MAJOR_MASK) << MAJOR_POS) | ((minor) & MINOR_MASK))
+#define GET_MAJOR(tlv_type) ((tlv_type) >> MAJOR_POS)
+#define GET_MINOR(tlv_type) ((tlv_type) &  MINOR_MASK)
 
 /* Initial attestation specific macros */
 #define MODULE_POS 6               /* 6 bit */
@@ -135,9 +161,9 @@ extern "C" {
 
 #define GET_IAS_MODULE(tlv_type) (GET_MINOR(tlv_type) >> MODULE_POS)
 #define GET_IAS_CLAIM(tlv_type)  (GET_MINOR(tlv_type)  & CLAIM_MASK)
-#define SET_IAS_MINOR(sw_module, claim) ((sw_module << 6) | claim)
+#define SET_IAS_MINOR(sw_module, claim) (((sw_module) << 6) | (claim))
 
-#define GET_IAS_MEASUREMENT_CLAIM(ias_claim) (ias_claim >> \
+#define GET_IAS_MEASUREMENT_CLAIM(ias_claim) ((ias_claim) >> \
                                               MEASUREMENT_CLAIM_POS)
 
 /* Magic value which marks the beginning of shared data area in memory */

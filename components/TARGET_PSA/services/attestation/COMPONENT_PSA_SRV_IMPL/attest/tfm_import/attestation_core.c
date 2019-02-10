@@ -11,49 +11,21 @@
 #include "tfm_client.h"
 #include "psa_initial_attestation_api.h"
 #include "attestation.h"
-#include "attestation_key.h"
 #include "tfm_boot_status.h"
 #include "tfm_plat_defs.h"
 #include "tfm_plat_device_id.h"
 #include "tfm_plat_boot_seed.h"
 #include "tfm_attest_hal.h"
 #include "attest_token.h"
+#include "attest_eat_defines.h"
 #include "t_cose/src/t_cose_defines.h"
 #include "useful_buf.h"
-
-#define EAT_CBOR_ARM_RANGE_BASE                 (-75000)
-#define EAT_CBOR_ARM_LABEL_PROFILE_DEFINITION   (EAT_CBOR_ARM_RANGE_BASE - 0)
-#define EAT_CBOR_ARM_LABEL_CLIENT_ID            (EAT_CBOR_ARM_RANGE_BASE - 1)
-#define EAT_CBOR_ARM_LABEL_SECURITY_LIFECYCLE   (EAT_CBOR_ARM_RANGE_BASE - 2)
-#define EAT_CBOR_ARM_LABEL_IMPLEMENTATION_ID    (EAT_CBOR_ARM_RANGE_BASE - 3)
-#define EAT_CBOR_ARM_LABEL_BOOT_SEED            (EAT_CBOR_ARM_RANGE_BASE - 4)
-#define EAT_CBOR_ARM_LABEL_HW_VERSION           (EAT_CBOR_ARM_RANGE_BASE - 5)
-#define EAT_CBOR_ARM_LABEL_SW_COMPONENTS        (EAT_CBOR_ARM_RANGE_BASE - 6)
-#define EAT_CBOR_ARM_LABEL_NO_SW_COMPONENTS     (EAT_CBOR_ARM_RANGE_BASE - 7)
-#define EAT_CBOR_ARM_LABEL_NONCE                (EAT_CBOR_ARM_RANGE_BASE - 8)
-#define EAT_CBOR_ARM_LABEL_UEID                 (EAT_CBOR_ARM_RANGE_BASE - 9)
-#define EAT_CBOR_ARM_LABEL_ORIGINATION          (EAT_CBOR_ARM_RANGE_BASE - 10)
-
-#define EAT_CBOR_SW_COMPONENT_TYPE              (1u)
-#define EAT_CBOR_SW_COMPONENT_MEASUREMENT       (2u)
-#define EAT_CBOR_SW_COMPONENT_EPOCH             (3u)
-#define EAT_CBOR_SW_COMPONENT_VERSION           (4u)
-#define EAT_CBOR_SW_COMPONENT_SIGNER_ID         (5u)
-#define EAT_CBOR_SW_COMPONENT_MEASUREMENT_DESC  (6u)
-
-/*!
- * \var key_registered
- *
- * \brief Indicates whether the attestation key was registered to crypto
- *        service or not.
- */
-static uint32_t key_registered = 0;
 
 #define MAX_BOOT_STATUS 512
 
 /* Indicates how to encode SW components' measurements in the CBOR map */
-#define NESTED     1  /* Nested map */
-#define NOT_NESTED 0  /* Flat structure */
+#define EAT_SW_COMPONENT_NESTED     1  /* Nested map */
+#define EAT_SW_COMPONENT_NOT_NESTED 0  /* Flat structure */
 
 /* Indicates that the boot status does not contain any SW components'
  * measurement
@@ -141,8 +113,8 @@ static inline int32_t get_uint(const void *int_ptr,
     return 0;
 }
 /*!
- * \brief Static function to look up all entry in the shared data area
- *       (boot status) which belongs to a specific module.
+ * \brief Static function to look up all entires in the shared data area
+ *       (boot status) which belong to a specific module.
  *
  * \param[in]     module  The identifier of SW module to look up based on this
  * \param[out]    claim   The type of SW module's attribute
@@ -165,8 +137,8 @@ static int32_t attest_get_tlv_by_module(uint8_t    module,
 {
     struct shared_data_tlv_header *tlv_header;
     struct shared_data_tlv_entry  *tlv_entry;
-    uintptr_t tlv_end;
-    uintptr_t tlv_curr;
+    uint8_t *tlv_end;
+    uint8_t *tlv_curr;
 
     tlv_header = (struct shared_data_tlv_header *)boot_status;
     if (tlv_header->tlv_magic != SHARED_DATA_TLV_INFO_MAGIC) {
@@ -174,26 +146,25 @@ static int32_t attest_get_tlv_by_module(uint8_t    module,
     }
 
     /* Get the boundaries of TLV section where to lookup*/
-    tlv_end  = (uintptr_t)boot_status + tlv_header->tlv_tot_len;
+    tlv_end  = boot_status + tlv_header->tlv_tot_len;
     if (*tlv_ptr == NULL) {
         /* At first call set to the beginning of the TLV section */
-        tlv_curr = (uintptr_t)boot_status + SHARED_DATA_HEADER_SIZE;
+        tlv_curr = boot_status + SHARED_DATA_HEADER_SIZE;
     } else {
         /* Any subsequent call set to the next TLV entry */
-        tlv_curr = (uintptr_t)(*tlv_ptr);
         tlv_entry = (struct shared_data_tlv_entry *)(*tlv_ptr);
-        tlv_curr  = tlv_curr + tlv_entry->tlv_len;
+        tlv_curr  = (*tlv_ptr) + tlv_entry->tlv_len;
     }
 
     /* Iterates over the TLV section and returns the address and size of TLVs
      * with requested module identifier
      */
-    for(; tlv_curr < tlv_end; tlv_curr += tlv_entry->tlv_len) {
+    for (; tlv_curr < tlv_end; tlv_curr += tlv_entry->tlv_len) {
         tlv_entry = (struct shared_data_tlv_entry *)tlv_curr;
         if (GET_IAS_MODULE(tlv_entry->tlv_type) == module) {
             *claim   = GET_IAS_CLAIM(tlv_entry->tlv_type);
             *tlv_ptr = (uint8_t *)tlv_entry;
-            *tlv_len = tlv_entry ->tlv_len;
+            *tlv_len = tlv_entry->tlv_len;
             return 1;
         }
     }
@@ -204,14 +175,10 @@ static int32_t attest_get_tlv_by_module(uint8_t    module,
 /*!
  * \brief Static function to look up specific claim belongs to SW_GENERAL module
  *
- * \param[in]     claim   The claim ID to look for
- * \param[out]    tlv_len Length of the shared data entry
- * \param[in/out] tlv_ptr Pointer to the shared data entry. If its value NULL as
- *                        input then it will starts the look up from the
- *                        beginning of the shared data section. If not NULL then
- *                        it continue look up from the next entry. It returns
- *                        the address of next found entry which belongs to
- *                        module.
+ * \param[in]   claim    The claim ID to look for
+ * \param[out]  tlv_len  Length of the shared data entry
+ * \param[out]  tlv_ptr  Pointer to a shared data entry which belongs to the
+ *                       SW_GENERAL module.
  *
  * \retval    -1          Error, boot status is malformed
  * \retval     0          Entry not found
@@ -233,10 +200,8 @@ static int32_t attest_get_tlv_by_id(uint8_t    claim,
         /* Look up next entry */
         found = attest_get_tlv_by_module(module, &tlv_id,
                                          tlv_len, tlv_ptr);
-        if (found == -1) {
-            return -1;
-        } else if (found == 0) {
-            return 0;
+        if (found != 1) {
+            break;
         }
         /* At least one entry was found which belongs to SW_GENERAL,
          * check whether this one is looked for
@@ -244,9 +209,9 @@ static int32_t attest_get_tlv_by_id(uint8_t    claim,
         if (claim == tlv_id) {
             break;
         }
-    } while (found);
+    } while (found == 1);
 
-    return 1;
+    return found;
 }
 
 /*!
@@ -255,7 +220,7 @@ static int32_t attest_get_tlv_by_id(uint8_t    claim,
  *
  *  This function translates between TLV  and CBOR encoding.
  *
- * \param[in]  me           Attestation token encoding context
+ * \param[in]  token_ctx    Attestation token encoding context
  * \param[in]  tlv_id       The ID of claim
  * \param[in]  claim_value  A structure which carries a pointer and size about
  *                          the data item to be added to the token
@@ -263,7 +228,7 @@ static int32_t attest_get_tlv_by_id(uint8_t    claim,
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_sw_component_claim(struct attest_token_ctx *me,
+attest_add_sw_component_claim(struct attest_token_ctx *token_ctx,
                               uint8_t tlv_id,
                               struct useful_buf_c claim_value)
 {
@@ -272,22 +237,22 @@ attest_add_sw_component_claim(struct attest_token_ctx *me,
 
     switch (tlv_id) {
     case SW_MEASURE_VALUE:
-        attest_token_add_bstr(me,
+        attest_token_add_bstr(token_ctx,
                               EAT_CBOR_SW_COMPONENT_MEASUREMENT,
                               claim_value);
         break;
     case SW_MEASURE_TYPE:
-        attest_token_add_tstr(me,
+        attest_token_add_tstr(token_ctx,
                               EAT_CBOR_SW_COMPONENT_MEASUREMENT_DESC,
                               claim_value);
         break;
     case SW_VERSION:
-        attest_token_add_tstr(me,
+        attest_token_add_tstr(token_ctx,
                               EAT_CBOR_SW_COMPONENT_VERSION,
                               claim_value);
         break;
     case SW_SIGNER_ID:
-        attest_token_add_bstr(me,
+        attest_token_add_bstr(token_ctx,
                               EAT_CBOR_SW_COMPONENT_SIGNER_ID,
                               claim_value);
         break;
@@ -296,12 +261,12 @@ attest_add_sw_component_claim(struct attest_token_ctx *me,
         if (res) {
             return PSA_ATTEST_ERR_GENERAL;
         }
-        attest_token_add_integer(me,
+        attest_token_add_integer(token_ctx,
                                  EAT_CBOR_SW_COMPONENT_EPOCH,
                                  (int64_t)value);
         break;
     case SW_TYPE:
-        attest_token_add_tstr(me,
+        attest_token_add_tstr(token_ctx,
                               EAT_CBOR_SW_COMPONENT_TYPE,
                               claim_value);
         break;
@@ -316,7 +281,7 @@ attest_add_sw_component_claim(struct attest_token_ctx *me,
  * \brief Static function to add the measurement data of a single SW components
  *        to the attestation token.
  *
- * \param[in]  me           Token encoding context
+ * \param[in]  token_ctx    Token encoding context
  * \param[in]  module       SW component identifier
  * \param[in]  tlv_address  Address of the first TLV entry in the boot status,
  *                          which belongs to this SW component.
@@ -326,7 +291,7 @@ attest_add_sw_component_claim(struct attest_token_ctx *me,
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_single_sw_measurment(struct attest_token_ctx *me,
+attest_add_single_sw_measurment(struct attest_token_ctx *token_ctx,
                                 uint32_t module,
                                 uint8_t *tlv_address,
                                 uint32_t nested_map)
@@ -341,7 +306,7 @@ attest_add_single_sw_measurment(struct attest_token_ctx *me,
     enum psa_attest_err_t res;
     QCBOREncodeContext *cbor_encode_ctx;
 
-    cbor_encode_ctx = attest_token_borrow_cbor_cntxt(me);
+    cbor_encode_ctx = attest_token_borrow_cbor_cntxt(token_ctx);
 
     /* Open nested map for SW component measurement claims */
     if (nested_map) {
@@ -355,7 +320,7 @@ attest_add_single_sw_measurment(struct attest_token_ctx *me,
          if (GET_IAS_MEASUREMENT_CLAIM(tlv_id)) {
             claim_value.ptr = tlv_ptr + SHARED_DATA_ENTRY_HEADER_SIZE;
             claim_value.len  = tlv_len - SHARED_DATA_ENTRY_HEADER_SIZE;
-            res = attest_add_sw_component_claim(me, tlv_id, claim_value);
+            res = attest_add_sw_component_claim(token_ctx, tlv_id, claim_value);
             if (res != PSA_ATTEST_ERR_SUCCESS) {
                 return res;
             }
@@ -380,7 +345,7 @@ attest_add_single_sw_measurment(struct attest_token_ctx *me,
  * \brief Static function to add the claims of a single SW components to the
  *        attestation token.
  *
- * \param[in]  me           Token encoding context
+ * \param[in]  token_ctx    Token encoding context
  * \param[in]  module       SW component identifier
  * \param[in]  tlv_address  Address of the first TLV entry in the boot status,
  *                          which belongs to this SW component.
@@ -388,7 +353,7 @@ attest_add_single_sw_measurment(struct attest_token_ctx *me,
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_single_sw_component(struct attest_token_ctx *me,
+attest_add_single_sw_component(struct attest_token_ctx *token_ctx,
                                uint32_t module,
                                uint8_t *tlv_address)
 {
@@ -403,7 +368,7 @@ attest_add_single_sw_component(struct attest_token_ctx *me,
     QCBOREncodeContext *cbor_encode_ctx;
 
     /* Open map which stores claims belong to a SW component */
-    cbor_encode_ctx = attest_token_borrow_cbor_cntxt(me);
+    cbor_encode_ctx = attest_token_borrow_cbor_cntxt(token_ctx);
     QCBOREncode_OpenMap(cbor_encode_ctx);
 
     /*Look up all TLV entry which belongs to the same SW component */
@@ -413,14 +378,16 @@ attest_add_single_sw_component(struct attest_token_ctx *me,
             if (measurement_claim_cnt == 0) {
                 /* Call only once when first measurement claim found */
                 measurement_claim_cnt++;
-                attest_add_single_sw_measurment(me, module,
-                                                tlv_ptr, NOT_NESTED);
+                attest_add_single_sw_measurment(token_ctx,
+                                                module,
+                                                tlv_ptr,
+                                                EAT_SW_COMPONENT_NOT_NESTED);
             }
         } else {
             /* Adding top level claims */
             claim_value.ptr = tlv_ptr + SHARED_DATA_ENTRY_HEADER_SIZE;
             claim_value.len  = tlv_len - SHARED_DATA_ENTRY_HEADER_SIZE;
-            attest_add_sw_component_claim(me, tlv_id, claim_value);
+            attest_add_sw_component_claim(token_ctx, tlv_id, claim_value);
         }
 
         /* Look up next entry which belongs to SW component */
@@ -441,12 +408,12 @@ attest_add_single_sw_component(struct attest_token_ctx *me,
  * \brief Static function to add the claims of all SW components to the
  *        attestation token.
  *
- * \param[in]  me   Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_all_sw_components(struct attest_token_ctx *me)
+attest_add_all_sw_components(struct attest_token_ctx *token_ctx)
 {
     uint16_t tlv_len;
     uint8_t *tlv_ptr;
@@ -476,11 +443,11 @@ attest_add_all_sw_components(struct attest_token_ctx *me)
             cnt++;
             if (cnt == 1) {
                 /* Open array which stores SW components claims */
-                cbor_encode_ctx = attest_token_borrow_cbor_cntxt(me);
+                cbor_encode_ctx = attest_token_borrow_cbor_cntxt(token_ctx);
                 QCBOREncode_OpenArrayInMapN(cbor_encode_ctx,
                                             EAT_CBOR_ARM_LABEL_SW_COMPONENTS);
             }
-            attest_add_single_sw_component(me, module, tlv_ptr);
+            attest_add_single_sw_component(token_ctx, module, tlv_ptr);
         }
     }
 
@@ -488,10 +455,10 @@ attest_add_all_sw_components(struct attest_token_ctx *me)
         /* Close array which stores SW components claims*/
         QCBOREncode_CloseArray(cbor_encode_ctx);
     } else {
-        /* If there is no any SW components' measurement in the boot status then
-         * include this claim to indicates that this state is intentional
+        /* If there is not any SW components' measurement in the boot status
+         * then include this claim to indicate that this state is intentional
          */
-        attest_token_add_integer(me,
+        attest_token_add_integer(token_ctx,
                                  EAT_CBOR_ARM_LABEL_NO_SW_COMPONENTS,
                                  (int64_t)NO_SW_COMPONENT_FIXED_VALUE);
     }
@@ -502,12 +469,12 @@ attest_add_all_sw_components(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add boot seed claim to attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_boot_seed_claim(struct attest_token_ctx *me)
+attest_add_boot_seed_claim(struct attest_token_ctx *token_ctx)
 {
     /* FixMe: Enforcement of 4 byte alignment can be removed as soon as memory
      *        type is configured in the MPU to be normal, instead of device,
@@ -538,7 +505,7 @@ attest_add_boot_seed_claim(struct attest_token_ctx *me)
         claim_value.len = BOOT_SEED_SIZE;
     }
 
-    attest_token_add_bstr(me,
+    attest_token_add_bstr(token_ctx,
                           EAT_CBOR_ARM_LABEL_BOOT_SEED,
                           claim_value);
 
@@ -553,12 +520,12 @@ attest_add_boot_seed_claim(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add instance id claim to attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_instance_id_claim(struct attest_token_ctx *me)
+attest_add_instance_id_claim(struct attest_token_ctx *token_ctx)
 {
     /* FixMe: Enforcement of 4 byte alignment can be removed as soon as memory
      *        type is configured in the MPU to be normal, instead of device,
@@ -577,7 +544,7 @@ attest_add_instance_id_claim(struct attest_token_ctx *me)
 
     claim_value.ptr = instance_id;
     claim_value.len  = size;
-    attest_token_add_bstr(me,
+    attest_token_add_bstr(token_ctx,
                           EAT_CBOR_ARM_LABEL_UEID,
                           claim_value);
 
@@ -587,12 +554,12 @@ attest_add_instance_id_claim(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add implementation id claim to attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_implementation_id_claim(struct attest_token_ctx *me)
+attest_add_implementation_id_claim(struct attest_token_ctx *token_ctx)
 {
     /* FixMe: Enforcement of 4 byte alignment can be removed as soon as memory
      *        type is configured in the MPU to be normal, instead of device,
@@ -611,7 +578,7 @@ attest_add_implementation_id_claim(struct attest_token_ctx *me)
 
     claim_value.ptr = implementation_id;
     claim_value.len  = size;
-    attest_token_add_bstr(me,
+    attest_token_add_bstr(token_ctx,
                           EAT_CBOR_ARM_LABEL_IMPLEMENTATION_ID,
                           claim_value);
 
@@ -621,12 +588,12 @@ attest_add_implementation_id_claim(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add hardware version claim to attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_hw_version_claim(struct attest_token_ctx *me)
+attest_add_hw_version_claim(struct attest_token_ctx *token_ctx)
 {
     /* FixMe: Enforcement of 4 byte alignment can be removed as soon as memory
      *        type is configured in the MPU to be normal, instead of device,
@@ -657,10 +624,10 @@ attest_add_hw_version_claim(struct attest_token_ctx *me)
             return PSA_ATTEST_ERR_CLAIM_UNAVAILABLE;
         }
         claim_value.ptr = hw_version;
-        claim_value.len = HW_VERSION_MAX_SIZE;
+        claim_value.len = size;
     }
 
-    attest_token_add_tstr(me,
+    attest_token_add_tstr(token_ctx,
                           EAT_CBOR_ARM_LABEL_HW_VERSION,
                           claim_value);
 
@@ -671,12 +638,12 @@ attest_add_hw_version_claim(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add caller id claim to attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_caller_id_claim(struct attest_token_ctx *me)
+attest_add_caller_id_claim(struct attest_token_ctx *token_ctx)
 {
     enum psa_attest_err_t res;
     int32_t  caller_id;
@@ -686,7 +653,7 @@ attest_add_caller_id_claim(struct attest_token_ctx *me)
         return res;
     }
 
-    attest_token_add_integer(me,
+    attest_token_add_integer(token_ctx,
                              EAT_CBOR_ARM_LABEL_CLIENT_ID,
                              (int64_t)caller_id);
 
@@ -696,13 +663,13 @@ attest_add_caller_id_claim(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add security lifecycle claim to attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 
 static enum psa_attest_err_t
-attest_add_security_lifecycle_claim(struct attest_token_ctx *me)
+attest_add_security_lifecycle_claim(struct attest_token_ctx *token_ctx)
 {
     enum tfm_security_lifecycle_t security_lifecycle;
     uint32_t slc_value;
@@ -712,7 +679,7 @@ attest_add_security_lifecycle_claim(struct attest_token_ctx *me)
     uint8_t *tlv_ptr = NULL;
     int32_t found = 0;
 
-    /* First look up HW version in boot status, it might comes
+    /* First look up lifecycle state in boot status, it might comes
      * from bootloader
      */
     found = attest_get_tlv_by_id(SECURITY_LIFECYCLE, &tlv_len, &tlv_ptr);
@@ -732,12 +699,12 @@ attest_add_security_lifecycle_claim(struct attest_token_ctx *me)
     }
 
     /* Sanity check */
-    if (security_lifecycle < TFM_SLC_ASSEMBLY ||
-        security_lifecycle > TFM_SLC_UNCONSTRAINED_DEBUG) {
+    if (security_lifecycle < TFM_SLC_UNKNOWN ||
+        security_lifecycle > TFM_SLC_DECOMMISSIONED) {
         return PSA_ATTEST_ERR_GENERAL;
     }
 
-    attest_token_add_integer(me,
+    attest_token_add_integer(token_ctx,
                              EAT_CBOR_ARM_LABEL_SECURITY_LIFECYCLE,
                              (int64_t)security_lifecycle);
 
@@ -747,16 +714,16 @@ attest_add_security_lifecycle_claim(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add challenge claim to attestation token.
  *
- * \param[in]  me         Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  * \param[in]  challenge  Pointer to buffer which stores the challenge
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_challenge_claim(struct attest_token_ctx *me,
+attest_add_challenge_claim(struct attest_token_ctx *token_ctx,
                            struct useful_buf_c challenge)
 {
-    attest_token_add_bstr(me, EAT_CBOR_ARM_LABEL_NONCE, challenge);
+    attest_token_add_bstr(token_ctx, EAT_CBOR_ARM_LABEL_NONCE, challenge);
 
     return PSA_ATTEST_ERR_SUCCESS;
 }
@@ -765,12 +732,12 @@ attest_add_challenge_claim(struct attest_token_ctx *me,
  * \brief Static function to add the verification service indicator claim
  *        to the attestation token.
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_verification_service(struct attest_token_ctx *me)
+attest_add_verification_service(struct attest_token_ctx *token_ctx)
 {
     struct useful_buf_c service;
     uint32_t size;
@@ -779,7 +746,9 @@ attest_add_verification_service(struct attest_token_ctx *me)
 
     if (service.ptr) {
         service.len = size;
-        attest_token_add_tstr(me, EAT_CBOR_ARM_LABEL_ORIGINATION, service);
+        attest_token_add_tstr(token_ctx,
+                              EAT_CBOR_ARM_LABEL_ORIGINATION,
+                              service);
     }
 
     return PSA_ATTEST_ERR_SUCCESS;
@@ -788,12 +757,12 @@ attest_add_verification_service(struct attest_token_ctx *me)
 /*!
  * \brief Static function to add the name of the profile definition document
  *
- * \param[in]  me  Token encoding context
+ * \param[in]  token_ctx  Token encoding context
  *
  * \return Returns error code as specified in \ref psa_attest_err_t
  */
 static enum psa_attest_err_t
-attest_add_profile_definition(struct attest_token_ctx *me)
+attest_add_profile_definition(struct attest_token_ctx *token_ctx)
 {
     struct useful_buf_c profile;
     uint32_t size;
@@ -802,7 +771,8 @@ attest_add_profile_definition(struct attest_token_ctx *me)
 
     if (profile.ptr) {
         profile.len = size;
-        attest_token_add_tstr(me, EAT_CBOR_ARM_LABEL_PROFILE_DEFINITION,
+        attest_token_add_tstr(token_ctx,
+                              EAT_CBOR_ARM_LABEL_PROFILE_DEFINITION,
                               profile);
     }
 
@@ -857,17 +827,6 @@ attest_create_token(struct useful_buf_c  challenge,
     int32_t alg_select;
     uint32_t option_flags = 0;
 
-    /* Register attestation key to crypto service at first call */
-    if (key_registered == 0) {
-        attest_err = attest_get_and_register_initial_attestation_key();
-
-        if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
-            goto error;
-        } else {
-            key_registered = 1;
-        }
-    }
-
     if (challenge.len == 36) {
         /* FixMe: Special challenge with option flags appended. This might can
          *        be removed when the public API can take option_flags.
@@ -890,7 +849,7 @@ attest_create_token(struct useful_buf_c  challenge,
     /* Map the key select to an algorithm. Maybe someday we'll support something
      * other than ES256
      */
-    switch(key_select) {
+    switch (key_select) {
     default:
         alg_select = COSE_ALG_ES256;
     }
@@ -935,6 +894,7 @@ attest_create_token(struct useful_buf_c  challenge,
          *        Currently in case of TFM_LVL == 3 unaligned access triggers
          *        a usage fault exception.
          */
+#if !defined(TFM_LVL) || (TFM_LVL == 1)
         attest_err = attest_add_instance_id_claim(&attest_token_ctx);
         if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
             goto error;
@@ -949,6 +909,7 @@ attest_create_token(struct useful_buf_c  challenge,
         if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
             goto error;
         }
+#endif
 
         attest_err = attest_add_caller_id_claim(&attest_token_ctx);
         if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
@@ -970,13 +931,13 @@ attest_create_token(struct useful_buf_c  challenge,
      * is generated. This finishes up the CBOR encoding too.
      */
     token_err = attest_token_finish(&attest_token_ctx, completed_token);
-    if(token_err) {
+    if (token_err) {
         attest_err = error_mapping(token_err);
         goto error;
     }
 
-    error:
-        return attest_err;
+error:
+    return attest_err;
 }
 
 /* Limitations of the current implementation:
@@ -1005,14 +966,14 @@ initial_attest_get_token(const psa_invec  *in_vec,  uint32_t num_invec,
 
     attest_err = attest_check_memory_access((void *)challenge.ptr,
                                             challenge.len,
-                                            ACCESS_RO);
+                                            TFM_ATTEST_ACCESS_RO);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
         goto error;
     }
 
     attest_err = attest_check_memory_access(token.ptr,
                                             token.len,
-                                            ACCESS_RW);
+                                            TFM_ATTEST_ACCESS_RW);
     if (attest_err != PSA_ATTEST_ERR_SUCCESS) {
         goto error;
     }
