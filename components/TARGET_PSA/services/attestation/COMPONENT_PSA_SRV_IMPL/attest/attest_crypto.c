@@ -40,7 +40,7 @@ t_cose_crypto_pub_key_sign(int32_t cose_alg_id,
     }
 
     crypto_ret = psa_asymmetric_sign(handle,
-                                     PSA_ALG_ECDSA(PSA_ALG_SHA_256),   //ECDSA SECP256R1 SHA-256
+                                     PSA_ALG_ECDSA(PSA_ALG_SHA_256),   //ECDSA SHA-256
                                      hash_to_sign.ptr,
                                      hash_to_sign.len,
                                      signature_buffer.ptr,
@@ -148,8 +148,12 @@ t_cose_crypto_hash_start(struct t_cose_crypto_hash *hash_ctx,
 void t_cose_crypto_hash_update(struct t_cose_crypto_hash *hash_ctx,
                                struct useful_buf_c data_to_hash)
 {
-    if (data_to_hash.ptr != NULL) {
+    if (data_to_hash.ptr != NULL)
+    {
         psa_hash_update(&hash_handle, data_to_hash.ptr, data_to_hash.len);
+    } else
+    {
+        /* Intentionally do nothing, just computing the size of the token */
     }
 }
 
