@@ -23,5 +23,4 @@ targets
 components/802.15.4_RF
 components/wifi
 tools
-components/TARGET_PSA/services/attestation/COMPONENT_PSA_SRV_IMPL/attest/tfm_import
-components/TARGET_PSA/services/attestation/COMPONENT_PSA_SRV_IMPL/lib
+components/TARGET_PSA/services/attestation/COMPONENT_PSA_SRV_IMPL/tfm_impl
