@@ -36,7 +36,7 @@ extern "C"
  *                          the chosen type.
  *                          In case of generate the private key - NULL will pass.
  * \param key_data_length   Size of the \p data buffer in bytes - must be 256 bits. in case key_data isn't NULL.
- *                          In case of generate the private key - 0 will pass.
+ *                          In case of private key generation - 0 will pass.
  * \param type              Key type -  must be a ECC key type
  *                          (a \c PSA_KEY_TYPE_ECC_KEYPAIR(PSA_ECC_CURVE_XXX) value).
  * \param[out] data         Buffer where the key data is to be written.

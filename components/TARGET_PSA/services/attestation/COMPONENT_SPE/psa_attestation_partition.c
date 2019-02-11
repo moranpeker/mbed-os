@@ -172,20 +172,20 @@ static void psa_attest_inject_key(void)
                 status = PSA_ERROR_INSUFFICIENT_MEMORY;
                 break;
             }
+            if (msg.in_size[1] != 0) {
+                key_data = calloc(1, msg.in_size[1]);
+                if (key_data == NULL) {
+                    status = PSA_ERROR_INSUFFICIENT_MEMORY;
+                    free(public_key_data);
+                    break;
+                }
 
-            key_data = calloc(1, msg.in_size[1]);
-            if (key_data == NULL) {
-                status = PSA_ERROR_INSUFFICIENT_MEMORY;
-                free(public_key_data);
-                break;
+                bytes_read = psa_read(msg.handle, 1,
+                                    key_data, msg.in_size[1]);
+                if (bytes_read != msg.in_size[1]) {
+                    SPM_PANIC("SPM read length mismatch");
+                }
             }
-
-            bytes_read = psa_read(msg.handle, 1,
-                                  key_data, msg.in_size[1]);
-            if (bytes_read != msg.in_size[1]) {
-                SPM_PANIC("SPM read length mismatch");
-            }
-
             status = psa_attestation_inject_key_impl(key_data,
                                                      msg.in_size[1],
                                                      type,
